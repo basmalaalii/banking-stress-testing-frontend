@@ -60,9 +60,9 @@ export default function ExcelTemplateModal({ isOpen, onClose }) {
             </p>
           </div>
 
-          {/* Table Container - Pure White internal table body with light gray borders */}
-          <div className="w-full overflow-x-auto bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <table className="w-full text-left border-collapse">
+          {/* Table Container - Glassmorphic blurred white background */}
+          <div className="w-full overflow-x-auto bg-white/70 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm">
+            <table className="w-full text-left border-collapse bg-transparent">
               <thead>
                 <tr className="bg-slate-100/70 border-b border-slate-200">
                   <th className="px-4 py-3.5 text-xs font-black text-black uppercase tracking-wider whitespace-nowrap">BANK</th>
@@ -80,7 +80,7 @@ export default function ExcelTemplateModal({ isOpen, onClose }) {
                   <th className="px-4 py-3.5 text-xs font-black text-black uppercase tracking-wider whitespace-nowrap">LT INDEX</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-600 font-semibold text-[11px] bg-white">
+              <tbody className="divide-y divide-slate-100 text-slate-600 font-semibold text-[11px] bg-transparent">
                 {sampleData.map((row, index) => (
                   <tr 
                     key={index}
