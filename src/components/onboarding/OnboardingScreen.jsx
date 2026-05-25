@@ -41,18 +41,28 @@ export default function OnboardingScreen() {
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#F8FAFC] font-sans select-none">
 
-      {/* 1. Left branding panel (40% width) - Project Gray Background with elegant light-purple glow */}
+      {/* 1. Left branding panel (40% width) - Project Gray Background with elegant left-side purple circular glow */}
       <div 
         className="w-full md:w-[40%] h-full border-r border-slate-100/60 flex flex-col justify-between p-10 md:p-12 relative overflow-hidden shrink-0"
         style={{ backgroundColor: '#F7F8FA' }}
       >
 
-        {/* Soft Blurry Circular Purple Glow (#6E68E7) centered in the middle-left */}
+        {/* Soft Blurry Lavender/Purple Glow centered in middle - existing center glow */}
         <div
-          className="absolute -left-20 top-1/2 -translate-y-1/2 w-[350px] h-[350px] rounded-full pointer-events-none opacity-50 z-0 animate-pulse-subtle"
+          className="absolute right-0 top-1/2 -translate-y-1/2 w-[350px] h-[350px] rounded-full pointer-events-none opacity-80"
           style={{
-            background: 'radial-gradient(circle, rgba(110, 104, 231, 0.6) 0%, rgba(110, 104, 231, 0) 70%)',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0) 70%)',
             filter: 'blur(45px)'
+          }}
+        />
+
+        {/* Purple Circular Glow (#6E68E7 at 50% opacity) on the LEFT edge of the column - matching center glow style */}
+        <div 
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-[280px] h-[280px] rounded-full pointer-events-none z-0"
+          style={{
+            background: 'radial-gradient(circle, rgba(110, 104, 231, 0.5) 0%, rgba(110, 104, 231, 0) 70%)',
+            filter: 'blur(50px)',
+            transform: 'translate(-40%, -50%)'
           }}
         />
 
@@ -99,7 +109,7 @@ export default function OnboardingScreen() {
         </div>
       </div>
 
-      {/* 2. Right main viewport (60% width) - White background & Pure White floating glass cards */}
+      {/* 2. Right main viewport (60% width) - Pure White background & glassmorphism floating cards */}
       <div className="w-full md:w-[60%] h-full p-4 md:p-6 lg:p-8 flex flex-col justify-between overflow-y-auto bg-white">
 
         {/* Welcome Header */}
@@ -118,7 +128,7 @@ export default function OnboardingScreen() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5 shrink-0 relative mt-1 lg:mt-2">
 
           {/* Card 1: Excel Ingestion */}
-          <div className="relative bg-white/60 backdrop-blur-md rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.04),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-200/60 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
+          <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.06),0_5px_15px_rgba(0,0,0,0.04)] border border-white/80 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.12)] hover:border-indigo-600/30 hover:bg-white/90 transition-all duration-300 group">
 
             {/* Excel Guideline Message & Exclamation Button on top-right */}
             <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end">
@@ -165,8 +175,8 @@ export default function OnboardingScreen() {
             </button>
           </div>
 
-          {/* Card 2: Manual Simulator - Clean with NO Badges or Tooltips */}
-          <div className="relative bg-white/60 backdrop-blur-md rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.04),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-200/60 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
+          {/* Card 2: Manual Simulator - Clean glassmorphism card */}
+          <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.06),0_5px_15px_rgba(0,0,0,0.04)] border border-white/80 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.12)] hover:border-indigo-600/30 hover:bg-white/90 transition-all duration-300 group">
 
             {/* Card Contents (Fully Centered Vertically and Horizontally) */}
             <div className="flex flex-col items-center">
@@ -191,7 +201,7 @@ export default function OnboardingScreen() {
 
         {/* Dynamic Ingestion Output section */}
         {activeResult ? (
-          <div className="p-3 bg-white/60 backdrop-blur-md border border-slate-200/60 rounded-2xl shadow-[0_10px_35px_rgba(110,104,231,0.02)] relative overflow-hidden shrink-0 mt-2 animate-slide-up">
+          <div className="p-3 bg-white/70 backdrop-blur-sm border border-white/80 rounded-2xl shadow-[0_10px_35px_rgba(110,104,231,0.06)] relative overflow-hidden shrink-0 mt-2 animate-slide-up">
             <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: activeResult.color }} />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -219,7 +229,7 @@ export default function OnboardingScreen() {
         ) : null}
 
         {/* 3. Balanced Model Accuracy Card with custom, perfectly sized ROC Curve SVG to prevent laptop screen cutoff */}
-        <div className="bg-white/60 backdrop-blur-md rounded-2xl p-3.5 lg:p-4 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-200/60 flex flex-col sm:flex-row items-stretch justify-between gap-4 lg:gap-5 mt-1.5 lg:mt-2 shrink-0">
+        <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-3.5 lg:p-4 shadow-[0_15px_40px_rgba(99,102,241,0.06),0_5px_15px_rgba(0,0,0,0.04)] border border-white/80 flex flex-col sm:flex-row items-stretch justify-between gap-4 lg:gap-5 mt-1.5 lg:mt-2 shrink-0">
 
           {/* SVG ROC Curve container */}
           <div className="flex-1 min-w-[200px] flex flex-col justify-between">
