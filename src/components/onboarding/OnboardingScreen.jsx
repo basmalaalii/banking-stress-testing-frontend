@@ -130,33 +130,31 @@ export default function OnboardingScreen() {
           {/* Card 1: Excel Ingestion */}
           <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.06),0_5px_15px_rgba(0,0,0,0.04)] border border-white/80 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.12)] hover:border-indigo-600/30 hover:bg-white/90 transition-all duration-300 group">
 
-            {/* Excel Guideline Message & Exclamation Button on top-right */}
-            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end">
+            {/* Excel Guideline Bubble + Exclamation button — absolutely positioned, zero impact on card flow */}
+            <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
               {/* Permanently Popped-Up Guideline Bubble */}
-              <div className="mb-2 bg-[#EEEFFD] text-[#6E68E7] px-3 py-1 rounded-full text-[8.5px] font-bold border border-[#6E68E7]/20 shadow-md flex items-center gap-1.5 whitespace-nowrap animate-pulse-subtle">
+              <div className="mb-1.5 bg-[#EEEFFD] text-[#6E68E7] px-3 py-1 rounded-full text-[8.5px] font-bold border border-[#6E68E7]/20 shadow-md flex items-center gap-1.5 whitespace-nowrap animate-pulse-subtle">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#6E68E7] animate-ping"></span>
                 <span>GUIDELINE: View Excel Template, Check Structure</span>
                 <span className="text-[9px] ml-0.5">➔</span>
-                
-                {/* Small indicator arrow pointing down to the exclamation mark */}
-                <div className="absolute top-full right-3 w-1.5 h-1.5 bg-[#EEEFFD] border-r border-b border-[#6E68E7]/20 transform rotate-45 -translate-y-[4px]"></div>
+                {/* Arrow pointing down to the ! button */}
+                <div className="absolute top-full right-3.5 w-1.5 h-1.5 bg-[#EEEFFD] border-r border-b border-[#6E68E7]/20 transform rotate-45 -translate-y-[4px]"></div>
               </div>
-
               {/* Clickable Exclamation Mark (!) */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsTemplateOpen(true);
                 }}
-                className="w-5 h-5 rounded-full bg-[#6E68E7] text-white hover:bg-[#5C56D6] flex items-center justify-center font-black text-xs cursor-pointer transition-all duration-200 shadow-md hover:scale-110 active:scale-95 border border-white"
+                className="w-5 h-5 rounded-full bg-[#6E68E7] text-white hover:bg-[#5C56D6] flex items-center justify-center font-black text-xs cursor-pointer transition-all duration-200 shadow-md hover:scale-110 active:scale-95 border border-white self-end"
                 title="View Excel Template Guidelines"
               >
                 !
               </button>
             </div>
 
-            {/* Card Contents (Fully Centered Vertically and Horizontally) */}
-            <div className="flex flex-col items-center pt-8">
+            {/* Card Contents — isolated flex column, perfectly centered like Manual Entry card */}
+            <div className="flex flex-col items-center">
               <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform border border-indigo-100/50">
                 <Cloud className="w-4 h-4" />
               </div>
