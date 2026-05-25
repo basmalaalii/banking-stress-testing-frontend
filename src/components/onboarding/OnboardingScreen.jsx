@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { Cloud, Sliders, Play, Sparkles } from 'lucide-react';
 import ExcelUploadModal from './ExcelUploadModal';
 import ManualEntryModal from './ManualEntryModal';
+import ExcelTemplateModal from './ExcelTemplateModal';
 
 export default function OnboardingScreen() {
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false);
   const [activeResult, setActiveResult] = useState(null);
 
   const handleUploadSuccess = (data) => {
@@ -40,7 +42,10 @@ export default function OnboardingScreen() {
     <div className="h-screen w-screen overflow-hidden flex flex-col md:flex-row bg-[#F8FAFC] font-sans select-none">
 
       {/* 1. Left branding panel (40% width) - Project Gray Background with elegant light-purple glow */}
-      <div className="w-full md:w-[40%] h-full bg-[#f8fafc] border-r border-slate-100/60 flex flex-col justify-between p-10 md:p-12 relative overflow-hidden shrink-0">
+      <div 
+        className="w-full md:w-[40%] h-full border-r border-slate-100/60 flex flex-col justify-between p-10 md:p-12 relative overflow-hidden shrink-0"
+        style={{ backgroundColor: '#F7F8FA' }}
+      >
 
         {/* Soft Blurry Lavender/Purple Glow centered in the middle-right */}
         <div
@@ -48,6 +53,14 @@ export default function OnboardingScreen() {
           style={{
             background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0) 70%)',
             filter: 'blur(45px)'
+          }}
+        />
+
+        {/* Purple Glow (#6E68E7 at 50% opacity) extending on the inner right border of the column */}
+        <div 
+          className="absolute right-0 top-0 h-full w-[40px] pointer-events-none z-0"
+          style={{
+            background: 'linear-gradient(to left, rgba(110, 104, 231, 0.5) 0%, rgba(110, 104, 231, 0) 100%)',
           }}
         />
 
@@ -95,7 +108,7 @@ export default function OnboardingScreen() {
       </div>
 
       {/* 2. Right main viewport (60% width) - Light Gray background (#F8FAFC) & Pure White floating cards */}
-      <div className="w-full md:w-[60%] h-full p-6 md:p-8 flex flex-col justify-between overflow-hidden bg-[#F8FAFC]">
+      <div className="w-full md:w-[60%] h-full p-4 md:p-6 lg:p-8 flex flex-col justify-between overflow-y-auto bg-[#F8FAFC]">
 
         {/* Welcome Header */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-200/50 shrink-0">
@@ -110,39 +123,43 @@ export default function OnboardingScreen() {
         </div>
 
         {/* Compact, balanced Choice cards container with Custom Soft Balanced Shadows */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 shrink-0 relative mt-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5 shrink-0 relative mt-1 lg:mt-2">
 
           {/* Card 1: Excel Ingestion */}
-          <div className="relative bg-white rounded-2xl p-5 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col items-center justify-center text-center min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
+          <div className="relative bg-white rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
 
-            {/* Custom Padded & Positioned Guideline Badge overlapping the top border */}
-            <div className="absolute -top-3 left-6 bg-indigo-500 text-white px-3.5 py-1 rounded-full text-[8.5px] font-black uppercase tracking-wide border border-white shadow-sm font-sans flex items-center gap-1 z-10 shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-              GUIDELINE: View Excel template. Check structure. ➔
-            </div>
+            {/* Excel Guideline Message & Exclamation Button on top-right */}
+            <div className="absolute top-2.5 right-2.5 z-20 flex flex-col items-end">
+              {/* Permanently Popped-Up Guideline Bubble */}
+              <div className="mb-2 bg-[#EEEFFD] text-[#6E68E7] px-3 py-1 rounded-full text-[8.5px] font-bold border border-[#6E68E7]/20 shadow-md flex items-center gap-1.5 whitespace-nowrap animate-pulse-subtle">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#6E68E7] animate-ping"></span>
+                <span>GUIDELINE: View Excel Template, Check Structure</span>
+                <span className="text-[9px] ml-0.5">➔</span>
+                
+                {/* Small indicator arrow pointing down to the exclamation mark */}
+                <div className="absolute top-full right-3 w-1.5 h-1.5 bg-[#EEEFFD] border-r border-b border-[#6E68E7]/20 transform rotate-45 -translate-y-[4px]"></div>
+              </div>
 
-            {/* Excel Exclamation Tooltip Icon on top-right - brandPurple (#6E68E7) */}
-            <div className="absolute top-3.5 right-3.5 group/tooltip z-10">
-              <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center justify-center font-black text-xs cursor-help transition-all duration-200 border border-indigo-600/10 shadow-sm">
+              {/* Clickable Exclamation Mark (!) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsTemplateOpen(true);
+                }}
+                className="w-5 h-5 rounded-full bg-[#6E68E7] text-white hover:bg-[#5C56D6] flex items-center justify-center font-black text-xs cursor-pointer transition-all duration-200 shadow-md hover:scale-110 active:scale-95 border border-white"
+                title="View Excel Template Guidelines"
+              >
                 !
-              </div>
-
-              {/* Tooltip Balloon */}
-              <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 w-52 p-3 bg-slate-900 text-white text-[10.5px] rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 transform translate-y-1 group-hover/tooltip:translate-y-0 z-20 pointer-events-none font-sans border border-slate-800">
-                <p className="font-semibold text-center leading-relaxed">
-                  Excel sheets must match structural indicators. Verify required headers like 'LDR' and 'CAR' before upload.
-                </p>
-                <div className="absolute top-full right-1/2 translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900" />
-              </div>
+              </button>
             </div>
 
             {/* Card Contents (Fully Centered Vertically and Horizontally) */}
-            <div className="flex flex-col items-center">
-              <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-2 group-hover:scale-105 transition-transform border border-indigo-100/50">
-                <Cloud className="w-4.5 h-4.5" />
+            <div className="flex flex-col items-center pt-8">
+              <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform border border-indigo-100/50">
+                <Cloud className="w-4 h-4" />
               </div>
               <h3 className="text-xs font-bold text-slate-800">Excel Upload</h3>
-              <p className="text-slate-400 text-[9px] mt-1 leading-relaxed max-w-[190px]">
+              <p className="text-slate-400 text-[8.5px] lg:text-[9px] mt-1 leading-relaxed max-w-[190px]">
                 Drag & drop your Excel (.xlsx, .csv) financial files here for bulk analysis and trend forecasting.
               </p>
             </div>
@@ -150,22 +167,22 @@ export default function OnboardingScreen() {
             {/* Chic Button with brandPurple */}
             <button
               onClick={() => setIsExcelOpen(true)}
-              className="mt-3 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9.5px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
+              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
             >
               Start Upload
             </button>
           </div>
 
           {/* Card 2: Manual Simulator - Clean with NO Badges or Tooltips */}
-          <div className="relative bg-white rounded-2xl p-5 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col items-center justify-center text-center min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
+          <div className="relative bg-white rounded-2xl p-4 lg:p-5 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col items-center justify-center text-center min-h-[145px] md:min-h-[165px] lg:min-h-[175px] hover:shadow-[0_20px_50px_rgba(99,102,241,0.08)] hover:border-indigo-600/30 transition-all duration-300 group">
 
             {/* Card Contents (Fully Centered Vertically and Horizontally) */}
             <div className="flex flex-col items-center">
-              <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-2 group-hover:scale-105 transition-transform border border-indigo-100/50">
+              <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-1.5 group-hover:scale-105 transition-transform border border-indigo-100/50">
                 <Sliders className="w-4.5 h-4.5" />
               </div>
               <h3 className="text-xs font-bold text-slate-800">Manual Entry</h3>
-              <p className="text-slate-400 text-[9px] mt-1 leading-relaxed max-w-[190px]">
+              <p className="text-slate-400 text-[8.5px] lg:text-[9px] mt-1 leading-relaxed max-w-[190px]">
                 Manually adjust key financial metrics to run instant predictive simulations for specific banks.
               </p>
             </div>
@@ -173,7 +190,7 @@ export default function OnboardingScreen() {
             {/* Chic Button with brandPurple */}
             <button
               onClick={() => setIsManualOpen(true)}
-              className="mt-3 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9.5px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
+              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
             >
               Begin Entry
             </button>
@@ -210,7 +227,7 @@ export default function OnboardingScreen() {
         ) : null}
 
         {/* 3. Balanced Model Accuracy Card with custom, perfectly sized ROC Curve SVG to prevent laptop screen cutoff */}
-        <div className="bg-white rounded-2xl p-4 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col sm:flex-row items-stretch justify-between gap-5 mt-2 shrink-0">
+        <div className="bg-white rounded-2xl p-3.5 lg:p-4 shadow-[0_15px_40px_rgba(99,102,241,0.03),0_5px_15px_rgba(0,0,0,0.01)] border border-slate-100 flex flex-col sm:flex-row items-stretch justify-between gap-4 lg:gap-5 mt-1.5 lg:mt-2 shrink-0">
 
           {/* SVG ROC Curve container */}
           <div className="flex-1 min-w-[200px] flex flex-col justify-between">
@@ -299,6 +316,10 @@ export default function OnboardingScreen() {
         isOpen={isManualOpen}
         onClose={() => setIsManualOpen(false)}
         onSubmitSuccess={handleManualSuccess}
+      />
+      <ExcelTemplateModal
+        isOpen={isTemplateOpen}
+        onClose={() => setIsTemplateOpen(false)}
       />
 
     </div>
