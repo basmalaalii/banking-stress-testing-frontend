@@ -4,7 +4,7 @@ import ExcelUploadModal from './ExcelUploadModal';
 import ManualEntryModal from './ManualEntryModal';
 import ExcelTemplateModal from './ExcelTemplateModal';
 
-export default function OnboardingScreen() {
+export default function OnboardingScreen({ onNavigateToDashboard }) {
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
@@ -118,9 +118,20 @@ export default function OnboardingScreen() {
             <h2 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Onboarding Wizard</h2>
             <p className="text-lg md:text-xl font-extrabold text-slate-800 mt-0.5">Select Analysis Mode</p>
           </div>
-          <div className="bg-indigo-50/50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-indigo-100/30">
-            <Sparkles className="w-3 h-3 animate-pulse" />
-            Ensemble RF + XGBoost Active
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-50/50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-indigo-100/30">
+              <Sparkles className="w-3 h-3 animate-pulse" />
+              Ensemble RF + XGBoost Active
+            </div>
+            {onNavigateToDashboard && (
+              <button
+                onClick={onNavigateToDashboard}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-black rounded-xl shadow-sm transition-all uppercase tracking-wider flex items-center gap-1.5"
+              >
+                Launch Dashboard
+                <span className="text-xs">→</span>
+              </button>
+            )}
           </div>
         </div>
 

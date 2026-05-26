@@ -1,11 +1,16 @@
-import React from 'react'
+import React, { useState } from 'react'
 import OnboardingScreen from './components/onboarding/OnboardingScreen'
+import Dashboard from './components/dashboard/Dashboard'
 
 function App() {
+  const [view, setView] = useState('onboarding') // 'onboarding' | 'dashboard'
+
+  if (view === 'dashboard') {
+    return <Dashboard onBack={() => setView('onboarding')} />
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 overflow-x-hidden font-sans">
-      <OnboardingScreen />
-    </div>
+    <OnboardingScreen onNavigateToDashboard={() => setView('dashboard')} />
   )
 }
 
