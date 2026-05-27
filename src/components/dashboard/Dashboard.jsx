@@ -1,7 +1,94 @@
 import React, { useState, useEffect } from 'react';
-import { MOCK_BANKS } from './mockData';
-import { VARIABLE_CONFIG } from './variableConfig';
 import { FileText, BookOpen, RefreshCw, ChevronRight, SlidersHorizontal } from 'lucide-react';
+
+/* ── Parse a formatted string like "120.0%", "3.24", "72" to a number ──────── */
+function parseNum(str) {
+  if (str == null) return 0;
+  return parseFloat(String(str).replace(/[^0-9.−-]/g, '').replace('\u2212', '-')) || 0;
+}
+
+/* ── Extract slider defaults from features_intelligence_list ─────────────── */
+function extractSliders(features) {
+  const find = (kw) => features?.find(f => f.variable_name?.toLowerCase().includes(kw.toLowerCase()));
+  const val  = (kw) => parseNum(find(kw)?.current_value ?? '0');
+  const roa   = val('roa') / 100;         // "0.93%" → 0.0093
+  const ldr   = val('ldr') / 100;         // "120.0%" → 1.20
+  const liq   = val('liquid') / 100;      // "38.0%" → 0.38
+  const npl   = val('npl');               // "3.24%" → 3.24 whole %
+  const car   = val('capital') / 100;     // "10.04%" → 0.1004
+  const size  = val('bank size') || val('size') || 25;
+  const egx   = val('egx') || val('egx30') || 14000;
+  const infl  = val('inflation');         // "11.1%" → 11.1 whole %
+  const esg   = val('esg') || val('sustainability') || 1;
+  return {
+    roa:    Math.max(0, roa || 0.015),
+    ltd:    Math.max(0.3, ldr || 0.85),
+    liquidAssets: Math.max(0.1, liq || 0.38),
+    npl:    Math.max(0, npl || 3.0),
+    car:    Math.max(0.05, car || 0.12),
+    bankSize: Math.max(10, size),
+    egx30:  Math.max(5000, egx),
+    inflation: Math.max(0, infl || 14),
+    esg:    Math.max(1, Math.min(3, Math.round(esg / 33 + 0.5) || 1)),
+  };
+}
+
+/* ── Adapter: convert UnifiedDashboardResponse → internal bank object ──────── */
+function adaptBank(apiBank) {
+  const ps      = apiBank.prediction_summary ?? {};
+  const meta    = apiBank.metadata ?? {};
+  const feat    = apiBank.features_intelligence_list ?? [];
+  const topFeat = feat[0] ?? {};
+  const trendRaw = apiBank.historical_and_forecast_trend ?? [];
+
+  // Trend: map is_forecast → forecast bool
+  const trend = trendRaw.map(p => ({ year: p.year, score: p.score, forecast: p.is_forecast }));
+  // If only one historical point, add a synthetic current before the forecast
+  const hist = trend.filter(p => !p.forecast);
+  const fore = trend.filter(p => p.forecast);
+  const finalTrend = hist.length === 0 && fore.length > 0
+    ? [{ year: fore[0].year - 1, score: ps.fragility_score ?? 0.5, forecast: false }, ...fore]
+    : trend.length === 1
+      ? [trend[0], { year: trend[0].year + 1, score: ps.fragility_score ?? 0.5, forecast: true }]
+      : trend;
+
+  // Radar: extract LDR, NPL, ROA, ESG on 0-1 scale
+  const fv = (kw) => parseNum(feat.find(f => f.variable_name?.toLowerCase().includes(kw))?.current_value ?? '0');
+  const radarCurrent = {
+    ltd: Math.max(0.1, Math.min(1.0, fv('ldr') / 200)),
+    npl: Math.max(0.1, Math.min(1.0, 1 - fv('npl') / 15)),
+    roa: Math.max(0.1, Math.min(1.0, fv('roa') / 5)),
+    esg: Math.max(0.1, Math.min(1.0, fv('esg') / 100)),
+  };
+  const radarTarget = { ltd: 0.80, npl: 0.80, roa: 0.75, esg: 0.75 };
+
+  // Top driver info
+  const sectorGap = topFeat.impact_direction === 'negative'
+    ? `+${(topFeat.importance_weight ?? 0).toFixed(0)}%`
+    : `-${(topFeat.importance_weight ?? 0).toFixed(0)}%`;
+
+  return {
+    id:    meta.bank_name ?? 'BANK',
+    label: meta.bank_name ?? 'Bank',
+    isGovernment: feat.find(f => f.variable_name?.toLowerCase().includes('ownership'))?.current_value?.toLowerCase().includes('government') ?? false,
+    isCrisis:     feat.find(f => f.variable_name?.toLowerCase().includes('crisis'))?.current_value?.toLowerCase().includes('government') ?? false,
+    sliders:      extractSliders(feat),
+    prediction_summary: {
+      fragility_score:    ps.fragility_score ?? 0.5,
+      status:             ps.status ?? 'STABLE',
+      confidence_interval: ps.confidence_interval ?? '±2%',
+      recommendation:     ps.general_stability_recommendation ?? '',
+    },
+    top_driver: {
+      name:        topFeat.variable_name ?? 'Unknown',
+      description: topFeat.semantic_reason ?? topFeat.actionable_recommendation ?? '',
+      sector_gap:  sectorGap,
+    },
+    trend:   finalTrend,
+    radar:   { target: radarTarget, current: radarCurrent },
+    features: feat,
+  };
+}
 
 /* ── 1. Gauge Chart (Concentric arc gradient) ──────────────────────────────── */
 function GaugeChart({ score, status }) {
@@ -248,46 +335,62 @@ function computeRFScore({ roa, ltd, liquidAssets, npl, bankSize, car, egx30, inf
 }
 
 /* ── 6. Main Dashboard View Component ──────────────────────────────────────── */
-export default function Dashboard({ onBackToOnboarding }) {
-  const [bankId, setBankId] = useState('BANK1');
-  
-  // Buffering States: tempSliders is sidebar, appliedSliders is charts/data
-  const [tempSliders, setTempSliders] = useState(MOCK_BANKS.BANK1.sliders);
-  const [appliedSliders, setAppliedSliders] = useState(MOCK_BANKS.BANK1.sliders);
-  
-  // Historical state to revert to previous experiment on reset
-  const [historySliders, setHistorySliders] = useState(MOCK_BANKS.BANK1.sliders);
-  
-  const [data, setData] = useState(MOCK_BANKS.BANK1);
-  const [running, setRunning] = useState(false);
+export default function Dashboard({ banksData = [], onBackToOnboarding }) {
+  // ── Sync adapted banks state with props ───────────────────────────────────
+  const [banksState, setBanksState] = useState([]);
+  const [bankId, setBankId] = useState('BANK');
 
   useEffect(() => {
-    const def = MOCK_BANKS[bankId].sliders;
-    setTempSliders(def);
-    setAppliedSliders(def);
-    setHistorySliders(def);
-    setData(MOCK_BANKS[bankId]);
-  }, [bankId]);
+    if (banksData && banksData.length > 0) {
+      const adapted = banksData.map(adaptBank);
+      setBanksState(adapted);
+      setBankId(adapted[0].id);
+    }
+  }, [banksData]);
+
+  const bankIds = banksState.map(b => b.id);
+  const data = banksState.find(b => b.id === bankId) ?? banksState[0];
+
+  const defaultSliders = data?.sliders ?? {
+    roa: 0.015, ltd: 0.85, liquidAssets: 0.38, npl: 3.0, car: 0.12,
+    bankSize: 25, egx30: 14000, inflation: 14, esg: 1,
+  };
+
+  const [tempSliders,     setTempSliders]     = useState(defaultSliders);
+  const [appliedSliders,  setAppliedSliders]  = useState(defaultSliders);
+  const [historySliders,  setHistorySliders]  = useState(defaultSliders);
+  const [running, setRunning] = useState(false);
+
+  // Sync sliders when bank changes
+  useEffect(() => {
+    if (data) {
+      const sl = data.sliders ?? defaultSliders;
+      setTempSliders(sl);
+      setAppliedSliders(sl);
+      setHistorySliders(sl);
+    }
+  }, [bankId, data]);
 
   const sl = (key, val) => setTempSliders(p => ({ ...p, [key]: val }));
 
-  // Stress-testing: RF non-linear scoring (all 9 variables interact simultaneously)
   const applyScenario = () => {
     setRunning(true);
     setTimeout(() => {
       setHistorySliders(appliedSliders);
       setAppliedSliders(tempSliders);
-      const newScore = computeRFScore({
-        ...tempSliders,
-        isGovernment: data.isGovernment,
-        isCrisis: data.isCrisis
-      });
+      const newScore = computeRFScore({ ...tempSliders, isGovernment: data?.isGovernment, isCrisis: data?.isCrisis });
       const status = newScore > 0.55 ? 'FRAGILE' : newScore > 0.30 ? 'VULNERABLE' : 'STABLE';
-      setData(prev => ({
-        ...prev,
-        prediction_summary: { ...prev.prediction_summary, fragility_score: parseFloat(newScore.toFixed(2)), status },
-        trend: prev.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(2)) } : p),
-      }));
+
+      setBanksState(prev => prev.map(b => b.id === bankId ? {
+        ...b,
+        prediction_summary: {
+          ...b.prediction_summary,
+          fragility_score: parseFloat(newScore.toFixed(4)),
+          status,
+        },
+        trend: b.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(4)) } : p)
+      } : b));
+
       setRunning(false);
     }, 500);
   };
@@ -295,20 +398,25 @@ export default function Dashboard({ onBackToOnboarding }) {
   const reset = () => {
     setTempSliders(historySliders);
     setAppliedSliders(historySliders);
-    const newScore = computeRFScore({
-      ...historySliders,
-      isGovernment: data.isGovernment,
-      isCrisis: data.isCrisis
-    });
+    const newScore = computeRFScore({ ...historySliders, isGovernment: data?.isGovernment, isCrisis: data?.isCrisis });
     const status = newScore > 0.55 ? 'FRAGILE' : newScore > 0.30 ? 'VULNERABLE' : 'STABLE';
-    setData(prev => ({
-      ...prev,
-      prediction_summary: { ...prev.prediction_summary, fragility_score: parseFloat(newScore.toFixed(2)), status },
-      trend: prev.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(2)) } : p),
-    }));
+
+    setBanksState(prev => prev.map(b => b.id === bankId ? {
+      ...b,
+      prediction_summary: {
+        ...b.prediction_summary,
+        fragility_score: parseFloat(newScore.toFixed(4)),
+        status,
+      },
+      trend: b.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(4)) } : p)
+    } : b));
   };
 
-  const { prediction_summary: ps, top_driver, trend, radar } = data;
+  const ps        = data?.prediction_summary ?? {};
+  const top_driver = data?.top_driver ?? { name: '—', description: '', sector_gap: '—' };
+  const trend     = data?.trend ?? [];
+  const radar     = data?.radar ?? { target: { ltd:0.8,npl:0.8,roa:0.75,esg:0.75 }, current: { ltd:0.5,npl:0.5,roa:0.5,esg:0.5 } };
+  const features  = data?.features ?? [];
   const isFragile = ps.status === 'FRAGILE';
   const statusColor = isFragile ? '#FF6B6B' : ps.status === 'VULNERABLE' ? '#F59E0B' : '#6E68E7';
   // Format helpers — all aligned with variableConfig.js real-world units
@@ -351,8 +459,15 @@ export default function Dashboard({ onBackToOnboarding }) {
     }
   ].sort((a, b) => b.value - a.value);
 
-  // Dynamic Variable Intelligence Grid — 11 variables with real-world units & thresholds
-  const gridVariables = [
+  // ── Variable Intelligence Grid — from real features_intelligence_list ─────
+  const gridVariables = features.length > 0 ? features.map(f => ({
+    variable: f.variable_name,
+    category: f.category ?? 'INTERNAL',
+    value:    f.current_value ?? '—',
+    safe:     f.impact_direction === 'positive' || (f.importance_weight ?? 0) < 40,
+    rec:      f.actionable_recommendation ?? f.semantic_reason ?? '',
+    critical: f.impact_direction === 'negative' && (f.importance_weight ?? 0) > 70,
+  })) : [
     {
       variable: 'Capital Adequacy Ratio (CAR)',
       category: 'INTERNAL',
@@ -428,21 +543,33 @@ export default function Dashboard({ onBackToOnboarding }) {
     {
       variable: 'Government-Owned Institution',
       category: 'INTERNAL',
-      value: data.isGovernment ? 'Yes (State-Owned)' : 'No (Private/Commercial)',
-      safe: data.isGovernment,
-      rec: data.isGovernment ? 'Implicit sovereign backstop provides systemic resilience (NBE profile).' : 'Private bank — must rely on market funding. Maintain higher capital and liquidity buffers.',
+      value: data?.isGovernment ? 'Yes (State-Owned)' : 'No (Private/Commercial)',
+      safe: !!data?.isGovernment,
+      rec: data?.isGovernment ? 'Implicit sovereign backstop provides systemic resilience (NBE profile).' : 'Private bank — must rely on market funding. Maintain higher capital and liquidity buffers.',
       critical: false
     },
     {
       variable: 'Systemic Crisis Mode',
       category: 'EXTERNAL',
-      value: data.isCrisis ? 'Active (Crisis Year)' : 'Inactive (Stable Period)',
-      safe: !data.isCrisis,
-      rec: data.isCrisis ? 'Crisis mode active: all risk scores amplified by 20%. Increase buffers immediately.' : 'Stable macro environment. Standard risk management protocols apply.',
-      critical: data.isCrisis
+      value: data?.isCrisis ? 'Active (Crisis Year)' : 'Inactive (Stable Period)',
+      safe: !data?.isCrisis,
+      rec: data?.isCrisis ? 'Crisis mode active: all risk scores amplified by 20%. Increase buffers immediately.' : 'Stable macro environment. Standard risk management protocols apply.',
+      critical: !!data?.isCrisis
     }
   ];
 
+
+  // Loading guard — banksState is populated asynchronously via useEffect
+  if (banksState.length === 0 || !data) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full border-4 border-[#6E68E7]/20 border-t-[#6E68E7] animate-spin" />
+          <p className="text-sm font-bold text-slate-400 tracking-widest uppercase">Loading Dashboard…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans text-slate-800 select-none">
@@ -473,11 +600,11 @@ export default function Dashboard({ onBackToOnboarding }) {
           </p>
         </div>
 
-        {/* Right Bank pills with custom premium padding */}
-        <div className="flex items-center gap-4 shrink-0">
-          {Object.values(MOCK_BANKS).map(b => (
+        {/* Right Bank pills — dynamic from real banksData */}
+        <div className="flex items-center gap-3 flex-wrap shrink-0">
+          {banksState.map(b => (
             <button key={b.id} onClick={() => setBankId(b.id)}
-              className={`px-7 py-2.5 rounded-full text-xs font-black border transition-all duration-300 ${
+              className={`px-6 py-2.5 rounded-full text-xs font-black border transition-all duration-300 ${
                 bankId === b.id
                   ? 'bg-[#6E68E7] text-white border-[#6E68E7] shadow-lg shadow-[#6E68E7]/20'
                   : 'bg-white text-[#6E68E7] border-slate-200 hover:border-[#6E68E7]'

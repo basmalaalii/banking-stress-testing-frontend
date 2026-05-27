@@ -3,11 +3,14 @@ import OnboardingScreen from './components/onboarding/OnboardingScreen'
 import Dashboard from './components/dashboard/Dashboard'
 
 function App() {
-  const [screen, setScreen] = useState('onboarding') // 'onboarding' or 'dashboard'
-  const [initialData, setInitialData] = useState(null)
+  // 'onboarding' | 'dashboard'
+  const [screen, setScreen]     = useState('onboarding')
+  // banksData is List[UnifiedDashboardResponse] from the backend
+  const [banksData, setBanksData] = useState([])
 
-  const handleProceedToDashboard = (data) => {
-    setInitialData(data)
+  const handleBanksReady = (data) => {
+    if (!data || data.length === 0) return
+    setBanksData(data)
     setScreen('dashboard')
   }
 
@@ -18,9 +21,9 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 overflow-hidden font-sans">
       {screen === 'onboarding' ? (
-        <OnboardingScreen onProceedToDashboard={handleProceedToDashboard} />
+        <OnboardingScreen onBanksReady={handleBanksReady} />
       ) : (
-        <Dashboard initialData={initialData} onBackToOnboarding={handleBackToOnboarding} />
+        <Dashboard banksData={banksData} onBackToOnboarding={handleBackToOnboarding} />
       )}
     </div>
   )
