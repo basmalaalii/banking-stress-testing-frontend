@@ -1,0 +1,8 @@
+[33mff8035e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{0}: reset: moving to HEAD~1
+[33macff73b[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{1}: commit: Feat: Push all dashboard components directly to frontend repo
+[33mff8035e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m HEAD@{2}: commit: feat(onboarding): pixel-align Excel card, multi-bank modal logic and label polish
+[33m56560f3[m HEAD@{3}: commit: style: circular left purple glow on sidebar, white right bg, glassmorphism backdrop-blur cards
+[33m6110a79[m HEAD@{4}: commit: style: apply circular left glow, white right background, and glassmorphic backdrop blurs to cards and table
+[33m9f9fa3e[m HEAD@{5}: commit: style: enhance onboarding screen design, fix height responsiveness, and implement excel template modal
+[33m8b7fb60[m HEAD@{6}: Branch: renamed refs/heads/master to refs/heads/main
+[33m8b7fb60[m HEAD@{8}: commit (initial): Initial commit: Independent frontend repository
