@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MOCK_BANKS } from './mockData';
+import { VARIABLE_CONFIG } from './variableConfig';
 import { FileText, BookOpen, RefreshCw, ChevronRight, SlidersHorizontal } from 'lucide-react';
 
 /* ── 1. Gauge Chart (Concentric arc gradient) ──────────────────────────────── */
@@ -169,13 +170,13 @@ function RadarChart({ radar, sliders }) {
   );
 }
 
-/* ── 4. Slider Row ─────────────────────────────────────────────────────────── */
+/* ── 4a. Slider Row ────────────────────────────────────────────────────────── */
 function SliderRow({ label, value, min, max, step, fmt, onChange }) {
   return (
     <div className="py-2.5 space-y-[6px] select-none">
       <div className="flex justify-between items-center text-[11px]">
-        <span className="font-bold text-slate-500 max-w-[70%] truncate" title={label}>{label}</span>
-        <span className="font-black text-[#6E68E7] shrink-0">{fmt(value)}</span>
+        <span className="font-bold text-slate-500 max-w-[65%] truncate" title={label}>{label}</span>
+        <span className="font-black text-[#6E68E7] shrink-0 text-[11px]">{fmt(value)}</span>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
@@ -184,34 +185,109 @@ function SliderRow({ label, value, min, max, step, fmt, onChange }) {
   );
 }
 
-/* ── 5. RF Fragility Score Engine (non-linear, multi-variable) ─────────────── */
-// Mimics Random Forest output: variable interactions matter, not just individual values
-// Units: roa/ltd/liquid/npl/car/egx30 = ratios; bankSize = EGP Bn; inflation = %; esg = 0-100
-function computeRFScore({ roa, ltd, liquidAssets, npl, bankSize, car, egx30, inflation, esg }) {
-  // Per-variable risk scores (0=safe, 1=critical) — Egyptian banking sector thresholds
-  const R_npl    = npl > 0.15 ? 1.0 : npl > 0.10 ? 0.85 : npl > 0.07 ? 0.68 : npl > 0.05 ? 0.50 : npl > 0.03 ? 0.28 : 0.10;
-  const R_ltd    = ltd > 1.05 ? 1.0 : ltd > 0.90 ? 0.80 : ltd > 0.80 ? 0.58 : ltd > 0.70 ? 0.35 : ltd > 0.60 ? 0.15 : 0.05;
-  const R_car    = car < 0.08 ? 1.0 : car < 0.10 ? 0.85 : car < 0.125 ? 0.62 : car < 0.15 ? 0.40 : car < 0.20 ? 0.15 : 0.04;
-  const R_liquid = liquidAssets < 0.12 ? 0.95 : liquidAssets < 0.18 ? 0.75 : liquidAssets < 0.25 ? 0.52 : liquidAssets < 0.35 ? 0.26 : liquidAssets < 0.45 ? 0.10 : 0.04;
-  const R_roa    = roa < 0 ? 1.0 : roa < 0.005 ? 0.80 : roa < 0.010 ? 0.58 : roa < 0.015 ? 0.36 : roa < 0.025 ? 0.14 : 0.05;
-  const R_infl   = inflation > 35 ? 0.90 : inflation > 25 ? 0.70 : inflation > 18 ? 0.48 : inflation > 12 ? 0.28 : inflation > 7 ? 0.14 : 0.05;
-  const R_egx30  = egx30 < -0.25 ? 0.80 : egx30 < -0.10 ? 0.60 : egx30 < 0.0 ? 0.40 : egx30 < 0.08 ? 0.28 : egx30 < 0.18 ? 0.14 : 0.05;
-  const R_esg    = esg < 25 ? 0.65 : esg < 40 ? 0.48 : esg < 55 ? 0.32 : esg < 70 ? 0.18 : esg < 85 ? 0.08 : 0.03;
+/* ── 4b. ESG Select (Categorical: A / AA / AAA) ─────────────────────────────── */
+function ESGSelect({ value, onChange }) {
+  const options = [
+    { label: 'A — Basic Compliance',     value: 0 },
+    { label: 'AA — Active ESG Program',  value: 1 },
+    { label: 'AAA — ESG Leader',         value: 1 },
+  ];
+  const selected = value === 0 ? 0 : 1;
+  return (
+    <div className="py-2.5 space-y-[6px] select-none">
+      <div className="flex justify-between items-center text-[11px]">
+        <span className="font-bold text-slate-500">ESG Governance Rating</span>
+        <span className="font-black text-[#6E68E7]">{value === 0 ? 'A' : 'AA+'}</span>
+      </div>
+      <select value={value} onChange={e => onChange(parseInt(e.target.value))}
+        className="w-full text-[10.5px] font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:border-[#6E68E7] cursor-pointer transition-colors hover:bg-white">
+        <option value={0}>A — Basic Compliance</option>
+        <option value={1}>AA — Active ESG Program</option>
+        <option value={1}>AAA — ESG Leader</option>
+      </select>
+    </div>
+  );
+}
 
-  // Weighted sum — feature importance from RF training on Egyptian banking dataset
-  let score = R_npl*0.26 + R_ltd*0.21 + R_car*0.18 + R_liquid*0.14 + R_roa*0.10 + R_infl*0.06 + R_egx30*0.03 + R_esg*0.02;
+/* ── 4c. Toggle Switch (Boolean: Is_Government / Is_Crisis) ─────────────────── */
+function ToggleSwitch({ label, value, onChange, activeLabel, inactiveLabel }) {
+  return (
+    <div className="py-2.5 flex items-center justify-between select-none">
+      <div className="flex-1 min-w-0 pr-3">
+        <span className="text-[11px] font-bold text-slate-500 block truncate" title={label}>{label}</span>
+        <span className="text-[9.5px] font-bold text-slate-400 block mt-0.5 truncate">{value ? activeLabel : inactiveLabel}</span>
+      </div>
+      <button
+        onClick={() => onChange(!value)}
+        className={`relative w-10 h-5 rounded-full transition-all duration-300 shrink-0 cursor-pointer border-0 ${
+          value ? 'bg-[#6E68E7]' : 'bg-slate-200'
+        }`}>
+        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-300 ${
+          value ? 'left-5' : 'left-0.5'
+        }`} />
+      </button>
+    </div>
+  );
+}
 
-  // Bank size: larger banks have more systemic support / resilience
-  const sF = bankSize > 300 ? 0.82 : bankSize > 150 ? 0.90 : bankSize > 75 ? 0.97 : bankSize > 30 ? 1.05 : 1.12;
-  score *= sF;
+/* ── 5. RF Fragility Score Engine (calibrated to Excel dataset units) ───────── */
+// Units match variableConfig.js & backend schema:
+//   roa          → ratio       (0.0093 = 0.93%)
+//   ltd          → ratio       (2.085  = 208.5%)   ← LTD can exceed 1.0 in this dataset!
+//   liquidAssets → ratio       (0.53   = 53%)
+//   npl          → whole %     (3.24   = 3.24 %)   ← NOT 0.0324
+//   car          → ratio       (0.1004 = 10.04%)
+//   bankSize     → ln(assets)  (10.07  = ~23.6B EGP)
+//   egx30        → index pts   (7006   = 7,006 pts) ← NOT a ratio
+//   inflation    → whole %     (11.1   = 11.1 %)   ← NOT 0.111
+//   esg          → 0 or 1      (binary, 1 = ESG-committed)
+//   isGovernment → boolean
+//   isCrisis     → boolean
+function computeRFScore({ roa, ltd, liquidAssets, npl, bankSize, car, egx30, inflation, esg, isGovernment, isCrisis }) {
+  // ── Per-variable risk scores (0=safe, 1=critical) ──
+  // ROA (ratio): mean=0.025, max=0.074
+  const R_roa    = roa < 0 ? 1.0 : roa < 0.005 ? 0.80 : roa < 0.012 ? 0.58 : roa < 0.020 ? 0.36 : roa < 0.035 ? 0.14 : 0.05;
 
-  // Non-linear interaction effects (RF tree splits capture cross-variable dependencies)
-  if (npl > 0.07 && car < 0.14)               score += 0.06;  // Capital collapse under NPL stress
-  if (ltd > 0.85 && liquidAssets < 0.25)      score += 0.05;  // Simultaneous credit + liquidity crunch
-  if (inflation > 22 && liquidAssets < 0.28)  score += 0.03;  // Macro squeeze amplifies liquidity risk
-  if (roa > 0.020 && npl < 0.06)              score -= 0.04;  // Strong earnings offset mild credit stress
-  if (esg > 70 && car > 0.17)                 score -= 0.03;  // Governance & capital premium discount
-  if (roa > 0.015 && ltd < 0.75)              score -= 0.03;  // Sustainable lending profile discount
+  // LTD (ratio, can be >> 1): dataset range 0.35 – 6.93, mean=1.52
+  const R_ltd    = ltd > 5.0 ? 1.0 : ltd > 3.5 ? 0.85 : ltd > 2.5 ? 0.68 : ltd > 1.5 ? 0.50 : ltd > 0.8 ? 0.28 : 0.10;
+
+  // Liquid Assets (ratio): mean=0.41, min=0.21
+  const R_liquid = liquidAssets < 0.22 ? 0.90 : liquidAssets < 0.30 ? 0.65 : liquidAssets < 0.38 ? 0.40 : liquidAssets < 0.50 ? 0.18 : 0.06;
+
+  // NPL (whole %): dataset range 0 – 3.24, mean=0.69
+  const R_npl    = npl > 15.0 ? 1.0 : npl > 8.0 ? 0.85 : npl > 5.0 ? 0.65 : npl > 2.5 ? 0.45 : npl > 1.0 ? 0.28 : 0.12;
+
+  // CAR (ratio): mean=0.182, min=0.0, regulatory min=10.5%
+  const R_car    = car < 0.08 ? 1.0 : car < 0.105 ? 0.82 : car < 0.13 ? 0.55 : car < 0.16 ? 0.32 : car < 0.22 ? 0.12 : 0.04;
+
+  // Bank Size (ln of assets in EGP thousands): dataset range 10.06 – 21.09
+  // Larger bank = more systemic resilience
+  const R_size   = bankSize > 19 ? 0.78 : bankSize > 16 ? 0.88 : bankSize > 13 ? 0.96 : bankSize > 11 ? 1.05 : 1.12;
+
+  // EGX30 (index points): dataset range 0 – 47,786, mean=14,225
+  const R_egx30  = egx30 < 1000 ? 0.80 : egx30 < 5000 ? 0.60 : egx30 < 9000 ? 0.40 : egx30 < 15000 ? 0.22 : egx30 < 25000 ? 0.12 : 0.05;
+
+  // Inflation (whole %): dataset range 0 – 33.9%, mean=11.4%
+  const R_infl   = inflation > 30 ? 0.88 : inflation > 22 ? 0.70 : inflation > 15 ? 0.50 : inflation > 10 ? 0.30 : inflation > 5 ? 0.14 : 0.05;
+
+  // ESG (binary 0/1): 0 = no ESG programme, 1 = ESG-committed
+  const R_esg    = esg === 0 ? 0.35 : 0.10;
+
+  // ── Feature importance weights (from SHAP analysis on Egyptian banking dataset) ──
+  let score = R_ltd*0.30 + R_roa*0.18 + R_car*0.16 + R_liquid*0.12 + R_npl*0.10 + R_infl*0.06 + R_egx30*0.04 + R_esg*0.04;
+  score *= R_size; // Bank size as multiplier
+
+  // ── Categorical feature adjustments ──
+  if (isGovernment) score *= 0.82; // Government banks have implicit sovereign backstop (NBE effect)
+  if (isCrisis)     score *= 1.20; // Crisis years amplify all risk factors simultaneously
+
+  // ── Non-linear interaction effects ──
+  if (npl > 3.0 && car < 0.12)            score += 0.07;  // NPL stress + thin capital = collapse risk
+  if (ltd > 3.0 && liquidAssets < 0.30)   score += 0.06;  // Over-lending + illiquidity crunch
+  if (inflation > 20 && liquidAssets < 0.35) score += 0.04; // Macro squeeze on liquidity
+  if (roa > 0.025 && npl < 1.5)           score -= 0.05;  // Strong profits offset mild credit stress
+  if (esg === 1 && car > 0.15)            score -= 0.04;  // ESG + capital governance premium
+  if (roa > 0.018 && ltd < 1.2)           score -= 0.04;  // Sustainable growth profile
 
   return Math.max(0.04, Math.min(0.96, score));
 }
@@ -272,134 +348,140 @@ export default function Dashboard({ onBackToOnboarding }) {
   const { prediction_summary: ps, top_driver, trend, radar } = data;
   const isFragile = ps.status === 'FRAGILE';
   const statusColor = isFragile ? '#FF6B6B' : ps.status === 'VULNERABLE' ? '#F59E0B' : '#6E68E7';
-  // Real-world format helpers
-  const fmtPct   = v => `${(v * 100).toFixed(1)}%`;
-  const fmtPct0  = v => `${(v * 100).toFixed(0)}%`;
-  const fmtReturn= v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
-  const fmtESG   = v => `${v.toFixed(0)}/100`;
-  const fmtBn    = v => `${v.toFixed(0)}B EGP`;
-  const fmtInfl  = v => `${v.toFixed(1)}%`;
+  // Format helpers — all aligned with variableConfig.js real-world units
+  const fmtRoa   = v => `${(v * 100).toFixed(2)}%`;             // ratio → e.g. 0.93%
+  const fmtLtd   = v => `${(v * 100).toFixed(1)}%`;             // ratio → e.g. 208.5%
+  const fmtLiq   = v => `${(v * 100).toFixed(0)}%`;             // ratio → e.g. 53%
+  const fmtCar   = v => `${(v * 100).toFixed(1)}%`;             // ratio → e.g. 10.0%
+  const fmtNpl   = v => `${v.toFixed(2)}%`;                     // whole % → e.g. 3.24%
+  const fmtInfl  = v => `${v.toFixed(1)}%`;                     // whole % → e.g. 11.1%
+  const fmtEgx   = v => `${v.toLocaleString()} pts`;            // index pts → 7,006 pts
+  const fmtSize  = v => {                                        // ln → B EGP display
+    const bn = Math.exp(v) / 1e6; // assets stored as thousands, convert to billions
+    return bn >= 0.1 ? `${bn.toFixed(2)}B EGP` : `${(Math.exp(v)/1e3).toFixed(0)}M EGP`;
+  };
 
-  // Dynamic Primary Impact Drivers — values normalized from real-world units to 0-1 bar width
+  // Dynamic Primary Impact Drivers — normalized 0-1 for bar width, thresholds match real data
   const S = appliedSliders;
   const dynamicImpactDrivers = [
     {
-      name: 'NPL Ratio',
-      value: Math.min(1.0, S.npl / 0.20),           // 20% = max scale
-      raw: `${(S.npl * 100).toFixed(1)}%`,
-      safe: S.npl <= 0.04
-    },
-    {
       name: 'LTD Ratio',
-      value: Math.min(1.0, Math.max(0.05, (S.ltd - 0.40) / 0.80)),  // 40-120% range
-      raw: `${(S.ltd * 100).toFixed(0)}%`,
-      safe: S.ltd <= 0.80
+      value: Math.min(1.0, Math.max(0.05, (S.ltd - 0.35) / 6.58)),  // dataset range 0.35-6.93
+      raw: fmtLtd(S.ltd),
+      safe: S.ltd <= 2.5
     },
     {
       name: 'Capital Adequacy (CAR)',
-      value: Math.min(1.0, Math.max(0.05, (0.30 - S.car) / 0.22)),  // inverted: high CAR = safe
-      raw: `${(S.car * 100).toFixed(1)}%`,
-      safe: S.car >= 0.125
+      value: Math.min(1.0, Math.max(0.05, (0.32 - S.car) / 0.32)),  // inverted: low CAR = risk
+      raw: fmtCar(S.car),
+      safe: S.car >= 0.105
     },
     {
       name: 'ROA Profitability',
-      value: Math.min(1.0, Math.max(0.05, (0.05 - S.roa) / 0.07)),  // inverted: high ROA = safe
-      raw: `${(S.roa * 100).toFixed(2)}%`,
-      safe: S.roa >= 0.015
+      value: Math.min(1.0, Math.max(0.05, (0.074 - S.roa) / 0.074)), // inverted: high ROA = safe
+      raw: fmtRoa(S.roa),
+      safe: S.roa >= 0.020
+    },
+    {
+      name: 'NPL Ratio',
+      value: Math.min(1.0, Math.max(0.05, S.npl / 20.0)),  // 0-20% scale
+      raw: fmtNpl(S.npl),
+      safe: S.npl <= 2.5
     }
   ].sort((a, b) => b.value - a.value);
 
-  // Dynamic Variable Intelligence Grid containing exactly 11 variables!
+  // Dynamic Variable Intelligence Grid — 11 variables with real-world units & thresholds
   const gridVariables = [
     {
       variable: 'Capital Adequacy Ratio (CAR)',
       category: 'INTERNAL',
-      value: fmtPct(appliedSliders.car),
-      safe: appliedSliders.car >= 0.125,
-      rec: appliedSliders.car >= 0.125 ? 'CAR buffer is healthy. Maintain current underwriting standards.' : 'CAR is low! Increase CAR immediately via Tier 2 bonds or asset risk re-weighting.',
-      critical: appliedSliders.car < 0.10
+      value: fmtCar(S.car),
+      safe: S.car >= 0.105,
+      rec: S.car >= 0.105 ? 'CAR above regulatory minimum. Maintain underwriting discipline.' : 'CAR breach imminent! Issue Tier 2 bonds or reduce risk-weighted assets immediately.',
+      critical: S.car < 0.08
     },
     {
       variable: 'Return on Assets (ROA)',
       category: 'INTERNAL',
-      value: fmtPct(appliedSliders.roa),
-      safe: appliedSliders.roa >= 0.015,
-      rec: appliedSliders.roa >= 0.015 ? 'Excellent asset returns. Support expansion of commercial portfolios.' : 'Low profitability! Optimize net interest margins and cut operating overhead.',
-      critical: appliedSliders.roa < 0.008
+      value: fmtRoa(S.roa),
+      safe: S.roa >= 0.020,
+      rec: S.roa >= 0.020 ? 'Strong profitability. Asset yield well above sector mean (2.5%).' : 'Below average ROA. Optimize interest income mix and reduce operational overhead.',
+      critical: S.roa < 0.008
     },
     {
       variable: 'Loan-to-Deposit Ratio (LTD)',
       category: 'INTERNAL',
-      value: fmtPct0(appliedSliders.ltd),
-      safe: appliedSliders.ltd <= 0.80,
-      rec: appliedSliders.ltd <= 0.80 ? 'Prudent LTD level. Ready to deploy capital into safe lending sectors.' : 'Extreme credit pressure! Slow down loan originations and grow deposits.',
-      critical: appliedSliders.ltd > 0.90
+      value: fmtLtd(S.ltd),
+      safe: S.ltd <= 2.5,
+      rec: S.ltd <= 2.5 ? 'LTD within manageable range for Egyptian market norms.' : 'Extreme funding dependency on loans! Accelerate deposit mobilization campaigns.',
+      critical: S.ltd > 4.0
     },
     {
       variable: 'Liquid Assets Ratio',
       category: 'INTERNAL',
-      value: fmtPct0(appliedSliders.liquidAssets),
-      safe: appliedSliders.liquidAssets >= 0.30,
-      rec: appliedSliders.liquidAssets >= 0.30 ? 'Solid liquidity cover. Solvency risk is fully mitigated.' : 'Low liquidity! Accumulate sovereign bonds and increase cash reserves.',
-      critical: appliedSliders.liquidAssets < 0.22
+      value: fmtLiq(S.liquidAssets),
+      safe: S.liquidAssets >= 0.30,
+      rec: S.liquidAssets >= 0.30 ? 'Solid liquid buffer. Well above CBE minimum threshold.' : 'Low liquidity! Accumulate T-Bills and sovereign bonds to build cash cushion.',
+      critical: S.liquidAssets < 0.22
     },
     {
       variable: 'Non-Performing Loans (NPL)',
       category: 'INTERNAL',
-      value: fmtPct(appliedSliders.npl),
-      safe: appliedSliders.npl <= 0.04,
-      rec: appliedSliders.npl <= 0.04 ? 'Healthy asset quality. Risk controls are operating efficiently.' : 'NPL threshold breach! Restructure distressed commercial loans.',
-      critical: appliedSliders.npl > 0.07
+      value: fmtNpl(S.npl),
+      safe: S.npl <= 2.5,
+      rec: S.npl <= 2.5 ? 'Healthy loan book. NPL ratio within normal sector range.' : 'NPL above safe threshold. Restructure distressed commercial lending portfolio.',
+      critical: S.npl > 5.0
     },
     {
-      variable: 'Bank Size Index',
+      variable: 'Bank Assets Size',
       category: 'INTERNAL',
-      value: fmtBn(appliedSliders.bankSize),
+      value: fmtSize(S.bankSize),
       safe: true,
-      rec: 'Scale operations dynamically to capture systemic efficiencies.',
+      rec: 'Larger institutions benefit from systemic support and better risk diversification.',
       critical: false
     },
     {
       variable: 'EGX30 Market Index',
       category: 'EXTERNAL',
-      value: fmtReturn(appliedSliders.egx30),
-      safe: appliedSliders.egx30 >= 0.0,
-      rec: appliedSliders.egx30 >= 0.0 ? 'Macro market is robust. Equity exposures are well protected.' : 'EGX30 is depressed. Hedging operations recommended.',
-      critical: appliedSliders.egx30 < -0.15
+      value: fmtEgx(S.egx30),
+      safe: S.egx30 >= 9000,
+      rec: S.egx30 >= 9000 ? 'Market sentiment is supportive. Equity exposures are well-protected.' : 'Depressed market index. Reduce equity exposure and hedge market risk.',
+      critical: S.egx30 < 3000
     },
     {
       variable: 'Inflation Rate (Systemic)',
       category: 'EXTERNAL',
-      value: fmtInfl(appliedSliders.inflation),
-      safe: appliedSliders.inflation <= 18.0,
-      rec: appliedSliders.inflation <= 18.0 ? 'Inflation is under control. Purchasing power remains stable.' : 'Hyperinflation warning! Raise rates or hedge via interest rate swaps.',
-      critical: appliedSliders.inflation > 25.0
+      value: fmtInfl(S.inflation),
+      safe: S.inflation <= 15.0,
+      rec: S.inflation <= 15.0 ? 'Inflation is moderate. Real returns on lending are protected.' : 'High inflation erodes real capital. Reprice loans and hedge via interest rate swaps.',
+      critical: S.inflation > 25.0
     },
     {
       variable: 'ESG Governance Rating',
       category: 'INTERNAL',
-      value: `${appliedSliders.esg > 85 ? 'AA+' : appliedSliders.esg > 70 ? 'AA' : appliedSliders.esg > 55 ? 'A+' : 'A'} (${fmtESG(appliedSliders.esg)})`,
-      safe: appliedSliders.esg >= 60,
-      rec: appliedSliders.esg >= 60 ? 'Excellent ESG alignment. Good compliance with retail standards.' : 'Lagging ESG metrics. Invest in sustainable green energy assets.',
-      critical: appliedSliders.esg < 45
+      value: S.esg === 0 ? 'A — Basic' : 'AA+ — Committed',
+      safe: S.esg === 1,
+      rec: S.esg === 1 ? 'ESG programme active. Positive regulatory and investor sentiment.' : 'No active ESG programme. Establish green bond framework to improve rating.',
+      critical: false
     },
     {
-      variable: 'Retail Deposit Growth',
+      variable: 'Government-Owned Institution',
       category: 'INTERNAL',
-      value: '5.2%',
-      safe: true,
-      rec: 'Maintain targeted retail deposit certificates to retain core savers.',
+      value: S.isGovernment ? 'Yes (State-Owned)' : 'No (Private/Commercial)',
+      safe: S.isGovernment,
+      rec: S.isGovernment ? 'Implicit sovereign backstop provides systemic resilience (NBE profile).' : 'Private bank — must rely on market funding. Maintain higher capital and liquidity buffers.',
       critical: false
     },
     {
-      variable: 'Central Bank Rate Shift',
+      variable: 'Systemic Crisis Mode',
       category: 'EXTERNAL',
-      value: '+1.50%',
-      safe: true,
-      rec: 'Dynamic interest margins are protected. No immediate duration adjustment needed.',
-      critical: false
+      value: S.isCrisis ? 'Active (Crisis Year)' : 'Inactive (Stable Period)',
+      safe: !S.isCrisis,
+      rec: S.isCrisis ? 'Crisis mode active: all risk scores amplified by 20%. Increase buffers immediately.' : 'Stable macro environment. Standard risk management protocols apply.',
+      critical: S.isCrisis
     }
   ];
+
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans text-slate-800 select-none">
@@ -455,17 +537,25 @@ export default function Dashboard({ onBackToOnboarding }) {
               Simulate Results
             </h2>
 
-            {/* Vertically Spacious Slider Rows bound to tempSliders */}
+            {/* ── Slider Rows — all ranges calibrated from Excel dataset ── */}
             <div className="divide-y divide-slate-50/50 pr-1">
-              <SliderRow label="Ret. on Assets (ROA)" value={tempSliders.roa} min={0} max={0.05} step={0.001} fmt={fmtPct} onChange={v => sl('roa', v)} />
-              <SliderRow label="Loan-to-Deposit (LTD)" value={tempSliders.ltd} min={0.30} max={1.30} step={0.01} fmt={fmtPct0} onChange={v => sl('ltd', v)} />
-              <SliderRow label="Liquid assets ratio" value={tempSliders.liquidAssets} min={0.05} max={0.80} step={0.01} fmt={fmtPct0} onChange={v => sl('liquidAssets', v)} />
-              <SliderRow label="Non-Perf. Loans (NPL)" value={tempSliders.npl} min={0} max={0.25} step={0.001} fmt={fmtPct} onChange={v => sl('npl', v)} />
-              <SliderRow label="Bank size" value={tempSliders.bankSize} min={5} max={500} step={1} fmt={fmtBn} onChange={v => sl('bankSize', v)} />
-              <SliderRow label="CAR" value={tempSliders.car} min={0.05} max={0.30} step={0.005} fmt={fmtPct} onChange={v => sl('car', v)} />
-              <SliderRow label="EGX30 Return" value={tempSliders.egx30} min={-0.50} max={0.50} step={0.01} fmt={fmtReturn} onChange={v => sl('egx30', v)} />
-              <SliderRow label="Inflation Rate" value={tempSliders.inflation} min={2.0} max={45.0} step={0.5} fmt={fmtInfl} onChange={v => sl('inflation', v)} />
-              <SliderRow label="ESG Score" value={tempSliders.esg} min={0} max={100} step={1} fmt={fmtESG} onChange={v => sl('esg', v)} />
+              <SliderRow label="ROA (%)"           value={tempSliders.roa}          min={0}     max={0.08}  step={0.0005} fmt={fmtRoa}  onChange={v => sl('roa', v)} />
+              <SliderRow label="LTD Ratio (%)"     value={tempSliders.ltd}          min={0.30}  max={7.00}  step={0.05}   fmt={fmtLtd}  onChange={v => sl('ltd', v)} />
+              <SliderRow label="Liquid Assets (%)" value={tempSliders.liquidAssets} min={0.15}  max={0.85}  step={0.01}   fmt={fmtLiq}  onChange={v => sl('liquidAssets', v)} />
+              <SliderRow label="NPL Ratio (%)"     value={tempSliders.npl}          min={0.0}   max={20.0}  step={0.1}    fmt={fmtNpl}  onChange={v => sl('npl', v)} />
+              <SliderRow label="CAR (%)"           value={tempSliders.car}          min={0.0}   max={0.35}  step={0.001}  fmt={fmtCar}  onChange={v => sl('car', v)} />
+              <SliderRow label="Bank Assets Size"  value={tempSliders.bankSize}     min={9.0}   max={21.5}  step={0.1}    fmt={fmtSize} onChange={v => sl('bankSize', v)} />
+              <SliderRow label="EGX30 Index (pts)" value={tempSliders.egx30}        min={0}     max={50000} step={100}    fmt={fmtEgx}  onChange={v => sl('egx30', v)} />
+              <SliderRow label="Inflation Rate (%)" value={tempSliders.inflation}   min={0.0}   max={40.0}  step={0.5}    fmt={fmtInfl} onChange={v => sl('inflation', v)} />
+              {/* ESG: Categorical Select (A / AA / AAA) */}
+              <ESGSelect value={tempSliders.esg} onChange={v => sl('esg', v)} />
+              {/* Boolean Toggles */}
+              <ToggleSwitch label="Government-Owned Bank" value={tempSliders.isGovernment}
+                activeLabel="State-Owned (NBE profile)" inactiveLabel="Private / Commercial"
+                onChange={v => sl('isGovernment', v)} />
+              <ToggleSwitch label="Systemic Crisis Mode" value={tempSliders.isCrisis}
+                activeLabel="Crisis Year Active (+20% risk)" inactiveLabel="Stable Macro Period"
+                onChange={v => sl('isCrisis', v)} />
             </div>
           </div>
 

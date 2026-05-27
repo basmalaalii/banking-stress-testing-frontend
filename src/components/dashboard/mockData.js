@@ -1,50 +1,54 @@
-// mockData.js — Mock data matching backend UnifiedDashboardResponse schema
-// All slider values use REAL-WORLD units:
-//   roa          → ratio  (e.g. 0.015 = 1.5%)
-//   ltd          → ratio  (e.g. 0.72  = 72%)
-//   liquidAssets → ratio  (e.g. 0.30  = 30%)
-//   npl          → ratio  (e.g. 0.042 = 4.2%)
-//   bankSize     → EGP Billion (e.g. 85 = 85B EGP)
-//   car          → ratio  (e.g. 0.155 = 15.5%)
-//   egx30        → annual return ratio (e.g. 0.12 = +12%)
-//   inflation    → percent (e.g. 15.0 = 15%)
-//   esg          → score 0-100
+// mockData.js — Mock data for Dashboard static shell
+// All slider values use REAL-WORLD units matching variableConfig.js & backend schema:
+//   roa          → ratio        (e.g. 0.0093 = 0.93%)
+//   ltd          → ratio        (e.g. 2.085  = 208.5%)
+//   liquidAssets → ratio        (e.g. 0.53   = 53%)
+//   npl          → whole %      (e.g. 3.24   = 3.24%)
+//   car          → ratio        (e.g. 0.1004 = 10.04%)
+//   bankSize     → ln(Assets in EGP thousands)  (e.g. 10.07)
+//   egx30        → index points (e.g. 7006)
+//   inflation    → whole %      (e.g. 11.1   = 11.1%)
+//   esg          → 0 or 1       (0=A, 1=AA/AAA)
+//   isGovernment → boolean
+//   isCrisis     → boolean
 
 export const MOCK_BANKS = {
   BANK1: {
     id: 'BANK1',
     label: 'BANK 1',
     sliders: {
-      roa:          0.008,   // 0.8%  — low profitability, stress zone
-      ltd:          0.92,    // 92%   — high loan exposure
-      liquidAssets: 0.22,   // 22%   — below safe threshold
-      npl:          0.072,   // 7.2%  — elevated credit risk
-      bankSize:     45,      // 45B EGP — medium-small bank
-      car:          0.118,   // 11.8% — barely above regulatory min
-      egx30:        0.06,    // +6%   — subdued market return
-      inflation:    22.5,    // 22.5% — high inflationary pressure
-      esg:          42,      // 42/100 — weak governance score
+      roa:          0.009,    // 0.9%  — low profitability
+      ltd:          2.40,     // 240%  — very high credit exposure
+      liquidAssets: 0.34,     // 34%   — moderate liquidity
+      npl:          3.24,     // 3.24% — moderate NPL
+      car:          0.100,    // 10.0% — barely at regulatory minimum
+      bankSize:     10.07,    // ln(~23.6B EGP)
+      egx30:        7006,     // 7,006 pts — low market index
+      inflation:    11.1,     // 11.1%
+      esg:          0,        // A rating (non-ESG)
+      isGovernment: false,
+      isCrisis:     false,
     },
     prediction_summary: {
       fragility_score: 0.74,
       status: 'FRAGILE',
       confidence_interval: '±2.4%',
-      recommendation: 'Increase CAR to 15% immediately via Tier 2 bond issuance. Accelerate NPL provisioning by 20% before Q3 close.',
+      recommendation: 'CAR at regulatory minimum — immediate Tier 2 bond issuance required. High LTD ratio signals severe funding pressure.',
     },
     top_driver: {
-      name: 'NPL RATIO',
-      description: 'Critical threshold breach in commercial real estate lending sector.',
-      sector_gap: '+3.7%',
+      name: 'LTD RATIO',
+      description: 'Loan-to-deposit at 240% creates extreme liquidity concentration risk.',
+      sector_gap: '+58%',
     },
     trend: [
       { year: 2016, score: 0.18, forecast: false },
-      { year: 2019, score: 0.27, forecast: false },
-      { year: 2022, score: 0.48, forecast: false },
+      { year: 2019, score: 0.35, forecast: false },
+      { year: 2022, score: 0.55, forecast: false },
       { year: 2026, score: 0.74, forecast: true },
     ],
     radar: {
       target: { ltd: 0.80, npl: 0.75, roa: 0.80, esg: 0.75 },
-      current: { ltd: 0.52, npl: 0.44, roa: 0.62, esg: 0.68 },
+      current: { ltd: 0.42, npl: 0.54, roa: 0.58, esg: 0.60 },
     },
   },
 
@@ -52,36 +56,38 @@ export const MOCK_BANKS = {
     id: 'BANK2',
     label: 'BANK 2',
     sliders: {
-      roa:          0.024,   // 2.4%  — strong profitability
-      ltd:          0.63,    // 63%   — conservative lending
-      liquidAssets: 0.45,   // 45%   — excellent liquidity buffer
-      npl:          0.022,   // 2.2%  — healthy loan book
-      bankSize:     185,     // 185B EGP — large systemically important bank
-      car:          0.195,   // 19.5% — well-capitalized
-      egx30:        0.18,    // +18%  — strong market tailwind
-      inflation:    14.5,    // 14.5% — moderate macro pressure
-      esg:          78,      // 78/100 — good governance
+      roa:          0.031,    // 3.1%  — healthy profitability (75th pct)
+      ltd:          0.526,    // 52.6% — conservative LTD (25th pct)
+      liquidAssets: 0.49,     // 49%   — strong liquidity buffer
+      npl:          0.31,     // 0.31% — excellent asset quality (25th pct)
+      car:          0.209,    // 20.9% — well-capitalised (75th pct)
+      bankSize:     18.77,    // ln(~140B EGP) — large systemically important bank
+      egx30:        15019,    // 15,019 pts — strong market
+      inflation:    14.4,     // 14.4%
+      esg:          1,        // AA rating
+      isGovernment: false,
+      isCrisis:     false,
     },
     prediction_summary: {
-      fragility_score: 0.10,
+      fragility_score: 0.12,
       status: 'STABLE',
       confidence_interval: '±1.6%',
-      recommendation: 'Maintain current capital adequacy levels. Liquidity buffers are strong. Continue ESG integration for rating improvement.',
+      recommendation: 'Capital buffers are healthy. Liquidity well above minimum. Continue ESG integration programme.',
     },
     top_driver: {
       name: 'LIQUID ASSETS',
-      description: 'High liquidity ratio maintains strong short-term solvency coverage.',
-      sector_gap: '-4.2%',
+      description: 'Liquid asset ratio at 49% provides strong short-term solvency coverage.',
+      sector_gap: '-22%',
     },
     trend: [
-      { year: 2016, score: 0.38, forecast: false },
-      { year: 2019, score: 0.28, forecast: false },
+      { year: 2016, score: 0.35, forecast: false },
+      { year: 2019, score: 0.25, forecast: false },
       { year: 2022, score: 0.18, forecast: false },
-      { year: 2026, score: 0.10, forecast: true },
+      { year: 2026, score: 0.12, forecast: true },
     ],
     radar: {
       target: { ltd: 0.80, npl: 0.75, roa: 0.80, esg: 0.75 },
-      current: { ltd: 0.78, npl: 0.82, roa: 0.76, esg: 0.85 },
+      current: { ltd: 0.82, npl: 0.88, roa: 0.78, esg: 0.85 },
     },
   },
 
@@ -89,36 +95,38 @@ export const MOCK_BANKS = {
     id: 'BANK3',
     label: 'BANK 3',
     sliders: {
-      roa:          0.013,   // 1.3%  — below average
-      ltd:          0.88,    // 88%   — elevated credit pressure
-      liquidAssets: 0.27,   // 27%   — tight liquidity
-      npl:          0.055,   // 5.5%  — above safe threshold
-      bankSize:     68,      // 68B EGP — medium bank
-      car:          0.135,   // 13.5% — moderate capital buffer
-      egx30:        0.08,    // +8%   — weak market return
-      inflation:    19.0,    // 19.0% — elevated inflation
-      esg:          58,      // 58/100 — fair governance
+      roa:          0.017,    // 1.7%  — below sector mean (2.5%)
+      ltd:          1.916,    // 191.6% — elevated exposure (median)
+      liquidAssets: 0.40,     // 40%   — adequate (near median)
+      npl:          0.92,     // 0.92% — moderate NPL
+      car:          0.141,    // 14.1% — adequate but not strong
+      bankSize:     11.01,    // ln(~60B EGP) — medium bank
+      egx30:        13962,    // 13,962 pts — moderate market
+      inflation:    9.2,      // 9.2%
+      esg:          0,        // A rating
+      isGovernment: false,
+      isCrisis:     false,
     },
     prediction_summary: {
       fragility_score: 0.42,
       status: 'VULNERABLE',
       confidence_interval: '±2.1%',
-      recommendation: 'LTD ratio exceeds safe thresholds. Immediate deposit base expansion and NPL restructuring advised.',
+      recommendation: 'LTD ratio near stress zone. NPL provisioning should be increased. Monitor macroeconomic sensitivity.',
     },
     top_driver: {
       name: 'LTD RATIO',
-      description: 'Loan-to-deposit ratio exceeds prudential limit, pressuring short-term liquidity.',
-      sector_gap: '+8.7%',
+      description: 'LTD at 191% creates moderate funding concentration risk near stress threshold.',
+      sector_gap: '+9%',
     },
     trend: [
-      { year: 2016, score: 0.35, forecast: false },
-      { year: 2019, score: 0.41, forecast: false },
-      { year: 2022, score: 0.38, forecast: false },
+      { year: 2016, score: 0.32, forecast: false },
+      { year: 2019, score: 0.38, forecast: false },
+      { year: 2022, score: 0.40, forecast: false },
       { year: 2026, score: 0.42, forecast: true },
     ],
     radar: {
       target: { ltd: 0.80, npl: 0.75, roa: 0.80, esg: 0.75 },
-      current: { ltd: 0.40, npl: 0.52, roa: 0.58, esg: 0.65 },
+      current: { ltd: 0.50, npl: 0.65, roa: 0.62, esg: 0.62 },
     },
   },
 };
