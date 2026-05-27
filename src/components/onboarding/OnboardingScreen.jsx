@@ -4,11 +4,7 @@ import ExcelUploadModal from './ExcelUploadModal';
 import ManualEntryModal from './ManualEntryModal';
 import ExcelTemplateModal from './ExcelTemplateModal';
 
-<<<<<<< HEAD
-export default function OnboardingScreen({ onNavigateToDashboard }) {
-=======
 export default function OnboardingScreen({ onProceedToDashboard }) {
->>>>>>> 1c7ddd4
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
@@ -125,24 +121,9 @@ export default function OnboardingScreen({ onProceedToDashboard }) {
             <p className="text-lg md:text-xl font-extrabold text-slate-800 mt-0.5">Select Analysis Mode</p>
           </div>
           <div className="flex items-center gap-2">
-<<<<<<< HEAD
-            <div className="bg-indigo-50/50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-indigo-100/30">
-              <Sparkles className="w-3 h-3 animate-pulse" />
-              Ensemble RF + XGBoost Active
-            </div>
-            {onNavigateToDashboard && (
-              <button
-                onClick={onNavigateToDashboard}
-                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-black rounded-xl shadow-sm transition-all uppercase tracking-wider flex items-center gap-1.5"
-              >
-                Launch Dashboard
-                <span className="text-xs">→</span>
-              </button>
-            )}
-=======
             <button
               onClick={() => onProceedToDashboard?.({ bankName: 'ADIB' })}
-              className="bg-indigo-50 hover:bg-indigo-100 text-[#6E68E7] px-3.5 py-1.5 rounded-xl text-[10px] font-black border border-indigo-200/60 shadow-sm transition-all"
+              className="bg-indigo-50 hover:bg-indigo-100 text-[#6E68E7] px-3.5 py-1.5 rounded-xl text-[10px] font-black border border-indigo-200/60 shadow-sm transition-all cursor-pointer"
             >
               Demo Dashboard ➔
             </button>
@@ -150,7 +131,6 @@ export default function OnboardingScreen({ onProceedToDashboard }) {
               <Sparkles className="w-3 h-3 animate-pulse" />
               Ensemble RF + XGBoost Active
             </div>
->>>>>>> 1c7ddd4
           </div>
         </div>
 
@@ -197,7 +177,7 @@ export default function OnboardingScreen({ onProceedToDashboard }) {
             {/* Chic Button with brandPurple */}
             <button
               onClick={() => setIsExcelOpen(true)}
-              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
+              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans cursor-pointer"
             >
               Start Upload
             </button>
@@ -220,7 +200,7 @@ export default function OnboardingScreen({ onProceedToDashboard }) {
             {/* Chic Button with brandPurple */}
             <button
               onClick={() => setIsManualOpen(true)}
-              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans"
+              className="mt-2.5 px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[9px] font-bold rounded-xl shadow-sm transition-all uppercase tracking-wider font-sans cursor-pointer"
             >
               Begin Entry
             </button>
@@ -257,7 +237,7 @@ export default function OnboardingScreen({ onProceedToDashboard }) {
                 {/* Launch Monitor Action Button */}
                 <button
                   onClick={() => onProceedToDashboard?.({ bankName: activeResult.bankName })}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-bold rounded-xl shadow-md transition-all uppercase tracking-wider flex items-center gap-1"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-bold rounded-xl shadow-md transition-all uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                 >
                   Launch Monitor ➔
                 </button>

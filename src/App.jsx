@@ -3,16 +3,6 @@ import OnboardingScreen from './components/onboarding/OnboardingScreen'
 import Dashboard from './components/dashboard/Dashboard'
 
 function App() {
-<<<<<<< HEAD
-  const [view, setView] = useState('onboarding') // 'onboarding' | 'dashboard'
-
-  if (view === 'dashboard') {
-    return <Dashboard onBack={() => setView('onboarding')} />
-  }
-
-  return (
-    <OnboardingScreen onNavigateToDashboard={() => setView('dashboard')} />
-=======
   const [screen, setScreen] = useState('onboarding') // 'onboarding' or 'dashboard'
   const [initialData, setInitialData] = useState(null)
 
@@ -33,7 +23,6 @@ function App() {
         <Dashboard initialData={initialData} onBackToOnboarding={handleBackToOnboarding} />
       )}
     </div>
->>>>>>> 1c7ddd4
   )
 }
 
