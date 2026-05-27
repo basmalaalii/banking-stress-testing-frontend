@@ -1,33 +1,33 @@
-// mockData.js — Mock data for Dashboard static shell
-// All slider values use REAL-WORLD units matching variableConfig.js & backend schema:
-//   roa          → ratio        (e.g. 0.0093 = 0.93%)
-//   ltd          → ratio        (e.g. 2.085  = 208.5%)
-//   liquidAssets → ratio        (e.g. 0.53   = 53%)
-//   npl          → whole %      (e.g. 3.24   = 3.24%)
-//   car          → ratio        (e.g. 0.1004 = 10.04%)
-//   bankSize     → ln(Assets in EGP thousands)  (e.g. 10.07)
-//   egx30        → index points (e.g. 7006)
-//   inflation    → whole %      (e.g. 11.1   = 11.1%)
-//   esg          → 0 or 1       (0=A, 1=AA/AAA)
-//   isGovernment → boolean
-//   isCrisis     → boolean
+// mockData.js — Ground-truth mock data for the 9-variable interactive bank stress testing dashboard
+// Calibrated exactly to user ranges:
+//   roa          → ratio        (0% - 5%, e.g. 0.0093 = 0.93%)
+//   ltd          → ratio        (30% - 250%, e.g. 2.085 = 208.5%)
+//   liquidAssets → ratio        (10% - 70%, e.g. 0.53 = 53%)
+//   npl          → whole %      (0% - 15%, e.g. 3.24 = 3.24%)
+//   car          → ratio        (8% - 30%, e.g. 0.1004 = 10.04%)
+//   bankSize     → Billion EGP  (10B - 2000B EGP, e.g. 23.6)
+//   egx30        → index points (5000 - 40000 pts, e.g. 7006)
+//   inflation    → whole %      (5% - 40%, e.g. 11.1 = 11.1%)
+//   esg          → categorical  (1 = A, 2 = AA, 3 = AAA)
+// Government Ownership (isGovernment) and Systemic Crisis Mode (isCrisis) are stored as top-level
+// static properties for each bank (not modified by sliders, as they are part of onboarding setup).
 
 export const MOCK_BANKS = {
   BANK1: {
     id: 'BANK1',
     label: 'BANK 1',
+    isGovernment: false,
+    isCrisis: false,
     sliders: {
       roa:          0.009,    // 0.9%  — low profitability
-      ltd:          2.40,     // 240%  — very high credit exposure
+      ltd:          2.08,     // 208%  — high credit risk (above 200%)
       liquidAssets: 0.34,     // 34%   — moderate liquidity
       npl:          3.24,     // 3.24% — moderate NPL
       car:          0.100,    // 10.0% — barely at regulatory minimum
-      bankSize:     10.07,    // ln(~23.6B EGP)
-      egx30:        7006,     // 7,006 pts — low market index
-      inflation:    11.1,     // 11.1%
-      esg:          0,        // A rating (non-ESG)
-      isGovernment: false,
-      isCrisis:     false,
+      bankSize:     25,       // 25B EGP
+      egx30:        7000,     // 7,006 pts — low market index
+      inflation:    11.0,     // 11.0%
+      esg:          1,        // A rating (1=A, 2=AA, 3=AAA)
     },
     prediction_summary: {
       fragility_score: 0.74,
@@ -37,7 +37,7 @@ export const MOCK_BANKS = {
     },
     top_driver: {
       name: 'LTD RATIO',
-      description: 'Loan-to-deposit at 240% creates extreme liquidity concentration risk.',
+      description: 'Loan-to-deposit at 208% creates extreme liquidity concentration risk.',
       sector_gap: '+58%',
     },
     trend: [
@@ -55,18 +55,18 @@ export const MOCK_BANKS = {
   BANK2: {
     id: 'BANK2',
     label: 'BANK 2',
+    isGovernment: false,
+    isCrisis: false,
     sliders: {
-      roa:          0.031,    // 3.1%  — healthy profitability (75th pct)
-      ltd:          0.526,    // 52.6% — conservative LTD (25th pct)
+      roa:          0.031,    // 3.1%  — healthy profitability
+      ltd:          0.52,     // 52%   — highly conservative LTD
       liquidAssets: 0.49,     // 49%   — strong liquidity buffer
-      npl:          0.31,     // 0.31% — excellent asset quality (25th pct)
-      car:          0.209,    // 20.9% — well-capitalised (75th pct)
-      bankSize:     18.77,    // ln(~140B EGP) — large systemically important bank
-      egx30:        15019,    // 15,019 pts — strong market
-      inflation:    14.4,     // 14.4%
-      esg:          1,        // AA rating
-      isGovernment: false,
-      isCrisis:     false,
+      npl:          0.3,      // 0.3%  — excellent asset quality
+      car:          0.210,    // 21.0% — well-capitalised
+      bankSize:     140,      // 140B EGP — systemically important bank
+      egx30:        15000,    // 15,000 pts — strong market
+      inflation:    14.5,     // 14.5%
+      esg:          2,        // AA rating
     },
     prediction_summary: {
       fragility_score: 0.12,
@@ -94,18 +94,18 @@ export const MOCK_BANKS = {
   BANK3: {
     id: 'BANK3',
     label: 'BANK 3',
+    isGovernment: false,
+    isCrisis: false,
     sliders: {
-      roa:          0.017,    // 1.7%  — below sector mean (2.5%)
-      ltd:          1.916,    // 191.6% — elevated exposure (median)
-      liquidAssets: 0.40,     // 40%   — adequate (near median)
-      npl:          0.92,     // 0.92% — moderate NPL
-      car:          0.141,    // 14.1% — adequate but not strong
-      bankSize:     11.01,    // ln(~60B EGP) — medium bank
-      egx30:        13962,    // 13,962 pts — moderate market
-      inflation:    9.2,      // 9.2%
-      esg:          0,        // A rating
-      isGovernment: false,
-      isCrisis:     false,
+      roa:          0.017,    // 1.7%  — moderate profitability
+      ltd:          1.91,     // 191%  — elevated exposure
+      liquidAssets: 0.40,     // 40%   — adequate
+      npl:          0.9,      // 0.9%  — moderate NPL
+      car:          0.140,    // 14.0% — adequate
+      bankSize:     60,       // 60B EGP — medium bank
+      egx30:        14000,    // 14,000 pts — moderate market
+      inflation:    9.0,      // 9.0%
+      esg:          1,        // A rating
     },
     prediction_summary: {
       fragility_score: 0.42,
