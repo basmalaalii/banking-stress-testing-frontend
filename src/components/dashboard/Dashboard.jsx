@@ -187,36 +187,50 @@ function SliderRow({ label, value, min, max, step, fmt, onChange }) {
 /* ── 5. Main Dashboard View Component ──────────────────────────────────────── */
 export default function Dashboard({ onBackToOnboarding }) {
   const [bankId, setBankId] = useState('BANK1');
-  const [sliders, setSliders] = useState(MOCK_BANKS.BANK1.sliders);
+  
+  // Buffering States: tempSliders is sidebar, appliedSliders is charts/data
+  const [tempSliders, setTempSliders] = useState(MOCK_BANKS.BANK1.sliders);
+  const [appliedSliders, setAppliedSliders] = useState(MOCK_BANKS.BANK1.sliders);
+  
+  // Historical state to revert to previous experiment on reset
+  const [historySliders, setHistorySliders] = useState(MOCK_BANKS.BANK1.sliders);
+  
   const [data, setData] = useState(MOCK_BANKS.BANK1);
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    setSliders(MOCK_BANKS[bankId].sliders);
+    const def = MOCK_BANKS[bankId].sliders;
+    setTempSliders(def);
+    setAppliedSliders(def);
+    setHistorySliders(def);
     setData(MOCK_BANKS[bankId]);
   }, [bankId]);
 
-  const sl = (key, val) => setSliders(p => ({ ...p, [key]: val }));
+  const sl = (key, val) => setTempSliders(p => ({ ...p, [key]: val }));
 
   // Stress-testing simulation calculation
   const applyScenario = () => {
     setRunning(true);
     setTimeout(() => {
+      // Save current applied as history before updating, so user can restore if they reset!
+      setHistorySliders(appliedSliders);
+      
+      setAppliedSliders(tempSliders);
+      
       const base = MOCK_BANKS[bankId];
       const def = base.sliders;
       let delta = 0;
-      delta += (sliders.ltd - def.ltd) * 0.7;
-      delta += (sliders.npl - def.npl) * 1.5;
-      delta -= (sliders.liquidAssets - def.liquidAssets) * 0.6;
-      delta -= (sliders.car - def.car) * 0.8;
-      delta -= (sliders.roa - def.roa) * 2.5;
+      delta += (tempSliders.ltd - def.ltd) * 0.7;
+      delta += (tempSliders.npl - def.npl) * 1.5;
+      delta -= (tempSliders.liquidAssets - def.liquidAssets) * 0.6;
+      delta -= (tempSliders.car - def.car) * 0.8;
+      delta -= (tempSliders.roa - def.roa) * 2.5;
       
       const newScore = Math.max(0.08, Math.min(0.95, base.prediction_summary.fragility_score + delta));
       const status = newScore > 0.65 ? 'FRAGILE' : newScore > 0.38 ? 'VULNERABLE' : 'STABLE';
       
       setData(prev => ({
         ...prev,
-        sliders,
         prediction_summary: { ...prev.prediction_summary, fragility_score: parseFloat(newScore.toFixed(2)), status },
         trend: prev.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(2)) } : p),
       }));
@@ -225,14 +239,154 @@ export default function Dashboard({ onBackToOnboarding }) {
   };
 
   const reset = () => {
-    setSliders(MOCK_BANKS[bankId].sliders);
-    setData(MOCK_BANKS[bankId]);
+    // Reset to the previous state prior to user's experimentation/experience!
+    setTempSliders(historySliders);
+    setAppliedSliders(historySliders);
+    
+    // Recalculate fragility score for historySliders
+    const base = MOCK_BANKS[bankId];
+    const def = base.sliders;
+    let delta = 0;
+    delta += (historySliders.ltd - def.ltd) * 0.7;
+    delta += (historySliders.npl - def.npl) * 1.5;
+    delta -= (historySliders.liquidAssets - def.liquidAssets) * 0.6;
+    delta -= (historySliders.car - def.car) * 0.8;
+    delta -= (historySliders.roa - def.roa) * 2.5;
+    
+    const newScore = Math.max(0.08, Math.min(0.95, base.prediction_summary.fragility_score + delta));
+    const status = newScore > 0.65 ? 'FRAGILE' : newScore > 0.38 ? 'VULNERABLE' : 'STABLE';
+    
+    setData(prev => ({
+      ...prev,
+      prediction_summary: { ...prev.prediction_summary, fragility_score: parseFloat(newScore.toFixed(2)), status },
+      trend: prev.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(2)) } : p),
+    }));
   };
 
-  const { prediction_summary: ps, top_driver, trend, radar, impact_drivers, grid } = data;
+  const { prediction_summary: ps, top_driver, trend, radar } = data;
   const isFragile = ps.status === 'FRAGILE';
   const statusColor = isFragile ? '#FF6B6B' : ps.status === 'VULNERABLE' ? '#F59E0B' : '#6E68E7';
   const pct = v => `${(v * 100).toFixed(1)}%`;
+
+  // Dynamic Primary Impact Drivers (ranked in real-time by severity!)
+  const dynamicImpactDrivers = [
+    {
+      name: 'ROA Profitability',
+      value: Math.min(1.0, Math.max(0.15, appliedSliders.roa * 25)),
+      raw: `${(appliedSliders.roa * 100).toFixed(1)}%`,
+      safe: appliedSliders.roa >= 0.012
+    },
+    {
+      name: 'LTD Liquidity Pressure',
+      value: Math.min(1.0, Math.max(0.15, appliedSliders.ltd)),
+      raw: `${(appliedSliders.ltd * 100).toFixed(0)}%`,
+      safe: appliedSliders.ltd <= 0.85
+    },
+    {
+      name: 'NPL Risk exposure',
+      value: Math.min(1.0, Math.max(0.15, appliedSliders.npl * 5)),
+      raw: `${(appliedSliders.npl * 100).toFixed(1)}%`,
+      safe: appliedSliders.npl <= 0.045
+    },
+    {
+      name: 'Inflationary exposure',
+      value: Math.min(1.0, Math.max(0.15, appliedSliders.inflation)),
+      raw: `${(appliedSliders.inflation * 100).toFixed(0)}%`,
+      safe: appliedSliders.inflation <= 0.25
+    }
+  ].sort((a, b) => b.value - a.value);
+
+  // Dynamic Variable Intelligence Grid containing exactly 11 variables!
+  const gridVariables = [
+    {
+      variable: 'Capital Adequacy Ratio (CAR)',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.car * 100).toFixed(1)}%`,
+      safe: appliedSliders.car >= 0.15,
+      rec: appliedSliders.car >= 0.15 ? 'CAR buffer is healthy. Maintain current underwriting standards.' : 'CAR is critical! Increase CAR to 0.15 immediately via Tier 2 bonds.',
+      critical: appliedSliders.car < 0.12
+    },
+    {
+      variable: 'Return on Assets (ROA)',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.roa * 100).toFixed(1)}%`,
+      safe: appliedSliders.roa >= 0.015,
+      rec: appliedSliders.roa >= 0.015 ? 'Excellent asset returns. Support expansion of commercial portfolios.' : 'Low ROA! Optimize asset yield mix and cut operational overhead.',
+      critical: appliedSliders.roa < 0.008
+    },
+    {
+      variable: 'Loan-to-Deposit Ratio (LTD)',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.ltd * 100).toFixed(1)}%`,
+      safe: appliedSliders.ltd <= 0.85,
+      rec: appliedSliders.ltd <= 0.85 ? 'Prudent LTD level. Ready to deploy capital into safe lending sectors.' : 'Extreme credit pressure! Slow down loan originations and grow deposits.',
+      critical: appliedSliders.ltd > 0.90
+    },
+    {
+      variable: 'Liquid Assets Ratio',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.liquidAssets * 100).toFixed(1)}%`,
+      safe: appliedSliders.liquidAssets >= 0.35,
+      rec: appliedSliders.liquidAssets >= 0.35 ? 'Solid liquidity cover. Solvency risk is fully mitigated.' : 'Low liquidity! Accumulate sovereign bonds and increase cash reserves.',
+      critical: appliedSliders.liquidAssets < 0.25
+    },
+    {
+      variable: 'Non-Performing Loans (NPL)',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.npl * 100).toFixed(1)}%`,
+      safe: appliedSliders.npl <= 0.04,
+      rec: appliedSliders.npl <= 0.04 ? 'Healthy asset quality. Risk controls are operating efficiently.' : 'NPL threshold breach! Restructure distressed commercial loans.',
+      critical: appliedSliders.npl > 0.06
+    },
+    {
+      variable: 'Bank Size Index',
+      category: 'INTERNAL',
+      value: `${(appliedSliders.bankSize * 100).toFixed(0)}%`,
+      safe: true,
+      rec: 'Scale operations dynamically to capture systemic efficiencies.',
+      critical: false
+    },
+    {
+      variable: 'EGX30 Market Index',
+      category: 'EXTERNAL',
+      value: `${(appliedSliders.egx30 * 100).toFixed(0)}%`,
+      safe: appliedSliders.egx30 >= 0.5,
+      rec: appliedSliders.egx30 >= 0.5 ? 'Macro market is robust. Equity exposures are well protected.' : 'EGX30 is depressed. Hedging operations recommended.',
+      critical: appliedSliders.egx30 < 0.35
+    },
+    {
+      variable: 'Inflation Rate (Systemic)',
+      category: 'EXTERNAL',
+      value: `${(appliedSliders.inflation * 100).toFixed(0)}%`,
+      safe: appliedSliders.inflation <= 0.25,
+      rec: appliedSliders.inflation <= 0.25 ? 'Inflation is under control. Purchasing power remains stable.' : 'Hyperinflation warning! Raise rates or hedge via interest rate swaps.',
+      critical: appliedSliders.inflation > 0.35
+    },
+    {
+      variable: 'ESG Governance Rating',
+      category: 'INTERNAL',
+      value: appliedSliders.esg > 0.85 ? 'AA+' : appliedSliders.esg > 0.7 ? 'AA' : appliedSliders.esg > 0.55 ? 'A+' : 'A',
+      safe: appliedSliders.esg >= 0.6,
+      rec: appliedSliders.esg >= 0.6 ? 'Excellent ESG alignment. Good compliance with retail standards.' : 'Lagging ESG metrics. Invest in sustainable green energy assets.',
+      critical: appliedSliders.esg < 0.5
+    },
+    {
+      variable: 'Retail Deposit Growth',
+      category: 'INTERNAL',
+      value: '5.2%',
+      safe: true,
+      rec: 'Maintain targeted retail deposit certificates to retain core savers.',
+      critical: false
+    },
+    {
+      variable: 'Central Bank Rate Shift',
+      category: 'EXTERNAL',
+      value: '+1.50%',
+      safe: true,
+      rec: 'Dynamic interest margins are protected. No immediate duration adjustment needed.',
+      critical: false
+    }
+  ];
 
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-white font-sans text-slate-800 select-none">
@@ -288,17 +442,17 @@ export default function Dashboard({ onBackToOnboarding }) {
               Simulate Results
             </h2>
 
-            {/* Vertically Spacious Slider Rows */}
+            {/* Vertically Spacious Slider Rows bound to tempSliders */}
             <div className="divide-y divide-slate-50/50 pr-1">
-              <SliderRow label="Ret. on Assets (ROA)" value={sliders.roa} min={0} max={0.05} step={0.001} fmt={v => `${(v*100).toFixed(1)}%`} onChange={v => sl('roa', v)} />
-              <SliderRow label="Loan-to-Deposit (LTD)" value={sliders.ltd} min={0.3} max={1.5} step={0.01} fmt={pct} onChange={v => sl('ltd', v)} />
-              <SliderRow label="Liquid assets ratio" value={sliders.liquidAssets} min={0.1} max={0.9} step={0.01} fmt={pct} onChange={v => sl('liquidAssets', v)} />
-              <SliderRow label="Non-Perf. Loans (NPL)" value={sliders.npl} min={0} max={0.2} step={0.001} fmt={v => `${(v*100).toFixed(1)}%`} onChange={v => sl('npl', v)} />
-              <SliderRow label="Bank size" value={sliders.bankSize} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('bankSize', v)} />
-              <SliderRow label="CAR" value={sliders.car} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('car', v)} />
-              <SliderRow label="EGX30" value={sliders.egx30} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('egx30', v)} />
-              <SliderRow label="Inflation Rate" value={sliders.inflation} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('inflation', v)} />
-              <SliderRow label="ESG Score" value={sliders.esg} min={0.1} max={1.0} step={0.01}
+              <SliderRow label="Ret. on Assets (ROA)" value={tempSliders.roa} min={0} max={0.05} step={0.001} fmt={v => `${(v*100).toFixed(1)}%`} onChange={v => sl('roa', v)} />
+              <SliderRow label="Loan-to-Deposit (LTD)" value={tempSliders.ltd} min={0.3} max={1.5} step={0.01} fmt={pct} onChange={v => sl('ltd', v)} />
+              <SliderRow label="Liquid assets ratio" value={tempSliders.liquidAssets} min={0.1} max={0.9} step={0.01} fmt={pct} onChange={v => sl('liquidAssets', v)} />
+              <SliderRow label="Non-Perf. Loans (NPL)" value={tempSliders.npl} min={0} max={0.2} step={0.001} fmt={v => `${(v*100).toFixed(1)}%`} onChange={v => sl('npl', v)} />
+              <SliderRow label="Bank size" value={tempSliders.bankSize} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('bankSize', v)} />
+              <SliderRow label="CAR" value={tempSliders.car} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('car', v)} />
+              <SliderRow label="EGX30" value={tempSliders.egx30} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('egx30', v)} />
+              <SliderRow label="Inflation Rate" value={tempSliders.inflation} min={0.1} max={1.0} step={0.01} fmt={pct} onChange={v => sl('inflation', v)} />
+              <SliderRow label="ESG Score" value={tempSliders.esg} min={0.1} max={1.0} step={0.01}
                 fmt={v => v > 0.85 ? 'AA+' : v > 0.7 ? 'AA' : v > 0.55 ? 'A+' : 'A'} onChange={v => sl('esg', v)} />
             </div>
           </div>
@@ -421,7 +575,7 @@ export default function Dashboard({ onBackToOnboarding }) {
               </span>
               
               <div className="h-44 w-full flex items-center justify-center overflow-hidden my-0.5">
-                <RadarChart radar={radar} sliders={sliders} />
+                <RadarChart radar={radar} sliders={appliedSliders} />
               </div>
               
               <div className="flex justify-center gap-5 mt-1 border-t border-slate-50 pt-2 shrink-0">
@@ -445,19 +599,19 @@ export default function Dashboard({ onBackToOnboarding }) {
                 </p>
               </div>
               
-              {/* Dynamic scroll list */}
+              {/* Dynamic scroll list and dynamic conditional color formatting */}
               <div className="h-44 overflow-y-auto space-y-3 mt-3 pr-1">
-                {impact_drivers.map((d, i) => (
+                {dynamicImpactDrivers.map((d, i) => (
                   <div key={i} className="space-y-1.5">
                     <div className="flex justify-between items-center text-[10px] font-black">
                       <span className="text-slate-500 uppercase truncate max-w-[75%]" title={d.name}>{d.name}</span>
                       <span className={`shrink-0 ${d.safe ? 'text-[#6E68E7]' : 'text-[#FF6B6B]'}`}>
-                        {d.value.toFixed(2)}
+                        {d.raw}
                       </span>
                     </div>
                     <div className="h-[4px] bg-slate-100 rounded-full overflow-hidden w-full">
                       <div className={`h-full rounded-full transition-all duration-500 ${
-                        d.safe ? 'bg-[#6E68E7]' : i === impact_drivers.length - 1 ? 'bg-slate-700' : 'bg-[#FF6B6B]'
+                        d.safe ? 'bg-[#6E68E7]' : 'bg-[#FF6B6B]'
                       }`} style={{ width: `${d.value * 100}%` }} />
                     </div>
                   </div>
@@ -467,7 +621,7 @@ export default function Dashboard({ onBackToOnboarding }) {
 
           </div>
 
-          {/* ── ROW 3: INTELLIGENCE GRID (Spacious Table Card) ── */}
+          {/* ── ROW 3: INTELLIGENCE GRID (Spacious Table Card with Vertical Scrolling) ── */}
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col p-6 hover:shadow-md transition-shadow shrink-0">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <span className="text-[11px] font-black text-[#6E68E7] uppercase tracking-widest">
@@ -478,18 +632,19 @@ export default function Dashboard({ onBackToOnboarding }) {
               </button>
             </div>
             
-            <div className="overflow-x-auto w-full mt-3">
+            {/* max-h-[220px] scrollable div with sticky table headers */}
+            <div className="overflow-x-auto overflow-y-auto max-h-[220px] w-full mt-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-[#F8FAFC] text-[9px] font-black text-slate-450 uppercase tracking-widest border-b border-slate-100">
-                    <th className="px-6 py-3 font-black">Variable</th>
-                    <th className="px-5 py-3 font-black">Category</th>
-                    <th className="px-5 py-3 font-black">Current Value</th>
-                    <th className="px-5 py-3 font-black">Actionable Recommendation</th>
+                  <tr className="bg-[#F8FAFC] text-[9px] font-black text-slate-450 uppercase tracking-widest border-b border-slate-100 sticky top-0 z-10">
+                    <th className="px-6 py-3 font-black bg-[#F8FAFC]">Variable</th>
+                    <th className="px-5 py-3 font-black bg-[#F8FAFC]">Category</th>
+                    <th className="px-5 py-3 font-black bg-[#F8FAFC]">Current Value</th>
+                    <th className="px-5 py-3 font-black bg-[#F8FAFC]">Actionable Recommendation</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100/65 text-[11px] font-bold text-slate-600">
-                  {grid.map((row, i) => (
+                  {gridVariables.map((row, i) => (
                     <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-3.5 font-black text-slate-800 truncate max-w-[200px]" title={row.variable}>
                         {row.variable}
@@ -504,9 +659,9 @@ export default function Dashboard({ onBackToOnboarding }) {
                         </span>
                       </td>
                       <td className={`px-5 py-3.5 font-black ${row.safe ? 'text-[#6E68E7]' : 'text-[#FF6B6B]'}`}>
-                        Current: {row.variable.includes('Capital Adequacy') ? sliders.car.toFixed(2) : row.value}
+                        {row.value}
                       </td>
-                      <td className="px-5 py-3.5 text-[10.5px] font-bold text-slate-400 leading-relaxed max-w-[400px] truncate" title={row.rec}>
+                      <td className="px-5 py-3.5 text-[10.5px] font-bold text-slate-450 leading-relaxed max-w-[400px] truncate" title={row.rec}>
                         {row.critical && <span className="text-[#FF6B6B] font-black uppercase">CRITICAL: </span>}
                         {row.rec}
                       </td>
