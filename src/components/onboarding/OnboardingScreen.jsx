@@ -4,7 +4,7 @@ import ExcelUploadModal from './ExcelUploadModal';
 import ManualEntryModal from './ManualEntryModal';
 import ExcelTemplateModal from './ExcelTemplateModal';
 
-export default function OnboardingScreen() {
+export default function OnboardingScreen({ onProceedToDashboard }) {
   const [isExcelOpen, setIsExcelOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isTemplateOpen, setIsTemplateOpen] = useState(false);
@@ -15,6 +15,7 @@ export default function OnboardingScreen() {
       type: 'Excel Ingestion',
       title: `Dataset Uploaded: ${data.fileName}`,
       subtitle: `Target bank: ${data.bankName} • Size: ${data.fileSize}`,
+      bankName: data.bankName,
       index: data.bankName === 'NBE' ? 12.3616 : 5.1751,
       status: data.bankName === 'NBE' ? 'Fragile' : 'Stable',
       risk: data.bankName === 'NBE' ? 'High' : 'Low',
@@ -29,6 +30,7 @@ export default function OnboardingScreen() {
       type: 'What-If Simulation',
       title: `Interactive Bank Simulation (${data.year})`,
       subtitle: `Simulated Bank: ${data.bank} • Ownership: ${data.is_government ? 'Government' : 'Private'}`,
+      bankName: data.bank,
       index: data.predicted_lt_index,
       status: data.stability_status,
       risk: data.risk_level,
@@ -118,9 +120,17 @@ export default function OnboardingScreen() {
             <h2 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Onboarding Wizard</h2>
             <p className="text-lg md:text-xl font-extrabold text-slate-800 mt-0.5">Select Analysis Mode</p>
           </div>
-          <div className="bg-indigo-50/50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 shadow-sm border border-indigo-100/30">
-            <Sparkles className="w-3 h-3 animate-pulse" />
-            Ensemble RF + XGBoost Active
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onProceedToDashboard?.({ bankName: 'ADIB' })}
+              className="bg-indigo-50 hover:bg-indigo-100 text-[#6E68E7] px-3.5 py-1.5 rounded-xl text-[10px] font-black border border-indigo-200/60 shadow-sm transition-all"
+            >
+              Demo Dashboard ➔
+            </button>
+            <div className="hidden lg:flex bg-indigo-50/50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-bold items-center gap-1.5 shadow-sm border border-indigo-100/30">
+              <Sparkles className="w-3 h-3 animate-pulse" />
+              Ensemble RF + XGBoost Active
+            </div>
           </div>
         </div>
 
@@ -203,7 +213,7 @@ export default function OnboardingScreen() {
             <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: activeResult.color }} />
 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
+              <div className="flex-1">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-100 text-slate-700 uppercase tracking-wider">
                   <Play className="w-2.5 h-2.5 text-indigo-600 fill-indigo-600" />
                   {activeResult.type} Output
@@ -212,15 +222,25 @@ export default function OnboardingScreen() {
                 <p className="text-[9px] text-slate-400 mt-0.5">{activeResult.subtitle}</p>
               </div>
 
-              {/* Fragility Index Badge */}
-              <div className="flex items-center gap-3 shrink-0 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-100">
-                <div className="text-center">
-                  <span className="block text-[7.5px] font-bold text-slate-400 uppercase tracking-widest">AFI Score</span>
-                  <span className="text-base font-black text-slate-800 leading-none">{activeResult.index}</span>
+              <div className="flex items-center gap-3 shrink-0">
+                {/* Fragility Index Badge */}
+                <div className="flex items-center gap-3 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-100">
+                  <div className="text-center">
+                    <span className="block text-[7.5px] font-bold text-slate-400 uppercase tracking-widest">AFI Score</span>
+                    <span className="text-base font-black text-slate-800 leading-none">{activeResult.index.toFixed(2)}</span>
+                  </div>
+                  <div className={`px-2 py-1 rounded-lg ${activeResult.bgLight} ${activeResult.textDark} text-center font-bold text-[9px]`}>
+                    {activeResult.status} ({activeResult.risk})
+                  </div>
                 </div>
-                <div className={`px-2 py-1 rounded-lg ${activeResult.bgLight} ${activeResult.textDark} text-center font-bold text-[9px]`}>
-                  {activeResult.status} ({activeResult.risk})
-                </div>
+
+                {/* Launch Monitor Action Button */}
+                <button
+                  onClick={() => onProceedToDashboard?.({ bankName: activeResult.bankName })}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-bold rounded-xl shadow-md transition-all uppercase tracking-wider flex items-center gap-1"
+                >
+                  Launch Monitor ➔
+                </button>
               </div>
             </div>
           </div>
