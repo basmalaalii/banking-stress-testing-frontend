@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, BookOpen, RefreshCw, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { FileText, BookOpen, RefreshCw, ChevronRight, SlidersHorizontal, X, TrendingUp } from 'lucide-react';
 
 /* ── Parse a formatted string like "120.0%", "3.24", "72" to a number ──────── */
 function parseNum(str) {
@@ -21,8 +21,8 @@ function extractSliders(features) {
   const infl  = val('inflation');         // "11.1%" → 11.1 whole %
   const esg   = val('esg') || val('sustainability') || 1;
   return {
-    roa:    Math.max(0, roa || 0.015),
-    ltd:    Math.max(0.3, ldr || 0.85),
+    roa:    roa !== undefined ? roa : 0.015,
+    ltd:    Math.max(0.1, ldr || 0.85),
     liquidAssets: Math.max(0.1, liq || 0.38),
     npl:    Math.max(0, npl || 3.0),
     car:    Math.max(0.05, car || 0.12),
@@ -52,15 +52,21 @@ function adaptBank(apiBank) {
       ? [trend[0], { year: trend[0].year + 1, score: ps.fragility_score ?? 0.5, forecast: true }]
       : trend;
 
-  // Radar: extract LDR, NPL, ROA, ESG on 0-1 scale
+  // Radar: extract LDR, NPL, ROA, ESG on 0-1 scale based on maximums (LDR: 100%, NPL: 10%, ROA: 3%, ESG: 3)
   const fv = (kw) => parseNum(feat.find(f => f.variable_name?.toLowerCase().includes(kw))?.current_value ?? '0');
   const radarCurrent = {
-    ltd: Math.max(0.1, Math.min(1.0, fv('ldr') / 200)),
-    npl: Math.max(0.1, Math.min(1.0, 1 - fv('npl') / 15)),
-    roa: Math.max(0.1, Math.min(1.0, fv('roa') / 5)),
-    esg: Math.max(0.1, Math.min(1.0, fv('esg') / 100)),
+    ltd: Math.max(0.1, Math.min(1.0, fv('ldr') / 100)),
+    npl: Math.max(0.1, Math.min(1.0, fv('npl') / 10)),
+    roa: Math.max(0.1, Math.min(1.0, fv('roa') / 3)),
+    esg: Math.max(0.1, Math.min(1.0, fv('esg') / 3)),
   };
-  const radarTarget = { ltd: 0.80, npl: 0.80, roa: 0.75, esg: 0.75 };
+  
+  // Target Boundaries (Normalized magnitudes):
+  // LTD Target ~ 80% (0.80)
+  // NPL Target ~ 4% (0.40)
+  // ROA Target ~ 2% (0.66)
+  // ESG Target ~ 2.5 (0.83)
+  const radarTarget = { ltd: 0.80, npl: 0.40, roa: 0.66, esg: 0.83 };
 
   // Top driver info
   const sectorGap = topFeat.impact_direction === 'negative'
@@ -87,6 +93,7 @@ function adaptBank(apiBank) {
     trend:   finalTrend,
     radar:   { target: radarTarget, current: radarCurrent },
     features: feat,
+    historical_drivers: apiBank.historical_drivers,
   };
 }
 
@@ -116,10 +123,17 @@ function GaugeChart({ score, status }) {
         
         {/* Active dynamic gradient track */}
         <path d={path} fill="none" stroke="url(#gg)" strokeWidth="12" strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference}`} className="transition-all duration-700 ease-out" />
+          style={{ 
+            strokeDasharray: `${filled} ${circumference}`,
+            transition: 'stroke-dasharray 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }} />
         
         {/* Rotating Pointer needle */}
-        <g transform={`rotate(${score * 180 - 90}, ${cx}, ${cy})`} className="transition-transform duration-700 ease-out">
+        <g style={{
+            transform: `rotate(${score * 180}deg)`,
+            transformOrigin: `${cx}px ${cy}px`,
+            transition: 'transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }}>
           <line x1={cx} y1={cy} x2={cx - 68} y2={cy} stroke="#475569" strokeWidth="3" strokeLinecap="round" />
           <circle cx={cx} cy={cy} r="6" fill="#334155" />
         </g>
@@ -143,7 +157,9 @@ function GaugeChart({ score, status }) {
 
 /* ── 2. Line Chart (Historical solid & forecast dashed) ────────────────────── */
 function LineChart({ trend }) {
-  const W = 280, H = 140, pad = { l: 20, r: 20, t: 20, b: 25 };
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  
+  const W = 280, H = 140, pad = { l: 20, r: 20, t: 25, b: 25 };
   const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
   
   const xs = trend.map((_, i) => pad.l + (i / (trend.length - 1)) * iW);
@@ -164,22 +180,34 @@ function LineChart({ trend }) {
     : '';
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full overflow-visible">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full overflow-visible group/chart">
       {/* Horizontal grids */}
       {[0.25, 0.5, 0.75].map(v => (
         <line key={v} x1={pad.l} y1={pad.t + iH - v * iH} x2={W - pad.r} y2={pad.t + iH - v * iH}
           stroke="#F1F5F9" strokeWidth="1" strokeDasharray="2,2" />
       ))}
       
-      {/* Paths */}
-      <path d={solidPath} fill="none" stroke="#6E68E7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      {dashPath && <path d={dashPath} fill="none" stroke="#6E68E7" strokeWidth="3" strokeDasharray="5,4" strokeLinecap="round" />}
+      {/* Paths with drawing animation */}
+      <path d={solidPath} fill="none" stroke="#6E68E7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
+        className="animate-[draw_1.5s_ease-out_forwards]"
+        style={{ strokeDasharray: 1000, strokeDashoffset: 1000 }} />
+      {dashPath && <path d={dashPath} fill="none" stroke="#6E68E7" strokeWidth="2.5" strokeLinecap="round" 
+        className="animate-[draw_1.5s_ease-out_0.5s_forwards]"
+        style={{ strokeDasharray: '5,4', strokeDashoffset: 100 }} />}
       
       {/* Coordinate nodes */}
       {trend.map((p, i) => (
-        <g key={i} className="group">
-          <circle cx={xs[i]} cy={ys[i]} r="4.5" fill={p.forecast ? '#FF6B6B' : '#6E68E7'} stroke="white" strokeWidth="2" className="transition-all duration-300 hover:scale-150 cursor-pointer" />
-          <text x={xs[i]} y={ys[i] - 9} textAnchor="middle" fontSize="8" fontWeight="800" fill={p.forecast ? '#FF6B6B' : '#6E68E7'} fontFamily="Inter, sans-serif" className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <g key={i} 
+           className="animate-in zoom-in duration-500 fill-mode-both" 
+           style={{ animationDelay: `${i * 100}ms` }}
+           onMouseEnter={() => setHoveredIdx(i)}
+           onMouseLeave={() => setHoveredIdx(null)}>
+          <circle cx={xs[i]} cy={ys[i]} r={hoveredIdx === i ? 5.5 : 3.5} fill={p.forecast ? '#FF6B6B' : '#6E68E7'} stroke="white" strokeWidth="1.5" 
+            className="transition-all duration-300 cursor-pointer" />
+            
+          {/* Tooltip Percentage */}
+          <text x={xs[i]} y={ys[i] - 10} textAnchor="middle" fontSize="6" fontWeight="900" fill={p.forecast ? '#FF6B6B' : '#6E68E7'} fontFamily="Inter, sans-serif" 
+            className={`transition-all duration-300 pointer-events-none ${hoveredIdx === i ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'}`}>
             {Math.round(p.score * 100)}%
           </text>
         </g>
@@ -187,8 +215,9 @@ function LineChart({ trend }) {
       
       {/* X-axis labels */}
       {trend.map((p, i) => (
-        <text key={i} x={xs[i]} y={H - 5} textAnchor="middle" fontSize="8.5" fontWeight="800"
-          fill={p.forecast ? '#6E68E7' : '#94A3B8'} fontFamily="Inter, sans-serif">
+        <text key={i} x={xs[i]} y={H - 5} textAnchor="middle" fontSize="5.5" fontWeight="800"
+          fill={p.forecast ? '#6E68E7' : '#94A3B8'} fontFamily="Inter, sans-serif"
+          className="transition-opacity duration-300">
           {p.forecast ? `${p.year} (P)` : p.year}
         </text>
       ))}
@@ -202,11 +231,25 @@ function RadarChart({ radar, sliders }) {
   const angles = { ltd: -Math.PI / 2, npl: 0, roa: Math.PI / 2, esg: Math.PI };
   
   // Calculate dynamic current coordinates reflecting slider values in real-time
+  // Values are normalized between 0 and 1. 1 is the outer edge (Best State).
   const getDynamicValue = (key) => {
-    if (key === 'ltd') return Math.max(0.2, Math.min(1.0, sliders.ltd));
-    if (key === 'npl') return Math.max(0.2, Math.min(1.0, 1.0 - sliders.npl * 3.5)); // inverted risk direction
-    if (key === 'roa') return Math.max(0.2, Math.min(1.0, sliders.roa * 18));
-    if (key === 'esg') return Math.max(0.2, Math.min(1.0, sliders.esg));
+    // LTD: Target is around 80%. Let's say 1.0 means 100% LTD.
+    // Wait, lower LTD is more liquid. So let's invert LTD so outer edge = high liquidity?
+    // Usually radar charts have the "Target" as a polygon.
+    // If LTD is 85%, value = 0.85.
+    if (key === 'ltd') return Math.max(0.1, Math.min(1.0, sliders.ltd));
+    
+    // NPL: lower is better. Let's map 10% NPL to 0.0, and 0% NPL to 1.0.
+    // So 1 - (NPL / 10). Example: 3% NPL = 0.7.
+    if (key === 'npl') return Math.max(0.1, Math.min(1.0, 1.0 - (sliders.npl / 10.0)));
+    
+    // ROA: higher is better. Let's map 3% ROA (0.03) to 1.0.
+    // Example: 1.5% ROA (0.015) = 0.5.
+    if (key === 'roa') return Math.max(0.1, Math.min(1.0, sliders.roa / 0.03));
+    
+    // ESG: 1, 2, or 3. Let's map 3 to 1.0.
+    if (key === 'esg') return Math.max(0.1, Math.min(1.0, sliders.esg / 3.0));
+    
     return 0.5;
   };
 
@@ -258,12 +301,26 @@ function RadarChart({ radar, sliders }) {
 }
 
 /* ── 4a. Slider Row ────────────────────────────────────────────────────────── */
-function SliderRow({ label, value, min, max, step, fmt, onChange }) {
+function SliderRow({ label, value, min, max, step, onChange, inputMult = 1, suffix = '' }) {
   return (
     <div className="py-2.5 space-y-[6px] select-none">
       <div className="flex justify-between items-center text-[11px]">
-        <span className="font-bold text-slate-500 max-w-[65%] truncate" title={label}>{label}</span>
-        <span className="font-black text-[#6E68E7] shrink-0 text-[11px]">{fmt(value)}</span>
+        <span className="font-bold text-slate-500 max-w-[50%] truncate" title={label}>{label}</span>
+        <div className="flex items-center gap-1">
+          <input 
+            type="number" 
+            min={min * inputMult} 
+            max={max * inputMult} 
+            step={step * inputMult}
+            value={Number((value * inputMult).toFixed(3))}
+            onChange={e => {
+              const val = parseFloat(e.target.value);
+              if (!isNaN(val)) onChange(val / inputMult);
+            }}
+            className="w-14 px-1 py-0.5 text-right font-black text-[#6E68E7] bg-indigo-50 border border-indigo-100 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 text-[11px] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          {suffix && <span className="font-black text-[#6E68E7] text-[11px] w-6 shrink-0">{suffix}</span>}
+        </div>
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         onChange={e => onChange(parseFloat(e.target.value))}
@@ -272,73 +329,18 @@ function SliderRow({ label, value, min, max, step, fmt, onChange }) {
   );
 }
 
-/* ── 5. RF Fragility Score Engine (calibrated to exact Excel ranges) ───────── */
-// Units match variableConfig.js & backend schema:
-//   roa          → ratio       (0.0093 = 0.93%)
-//   ltd          → ratio       (2.085  = 208.5%)   ← LTD can exceed 1.0/100% in this dataset!
-//   liquidAssets → ratio       (0.53   = 53%)
-//   npl          → whole %     (3.24   = 3.24 %)   ← NOT 0.0324
-//   car          → ratio       (0.1004 = 10.04%)
-//   bankSize     → Billion EGP (e.g. 23.6)         ← converted to ln(Total Assets in Millions) for model
-//   egx30        → index pts   (7006   = 7,006 pts)
-//   inflation    → whole %     (11.1   = 11.1 %)
-//   esg          → 1, 2, or 3  (1=A, 2=AA, 3=AAA)  ← AA and AAA are considered ESG-committed
-//   isGovernment → boolean                         ← passed dynamically from bank metadata
-//   isCrisis     → boolean                         ← passed dynamically from bank metadata
-function computeRFScore({ roa, ltd, liquidAssets, npl, bankSize, car, egx30, inflation, esg, isGovernment, isCrisis }) {
-  // ── Per-variable risk scores (0=safe, 1=critical) ──
-  // ROA (ratio): mean=0.025, max=0.074 (min 0% - max 5% from user range)
-  const R_roa    = roa < 0 ? 1.0 : roa < 0.005 ? 0.80 : roa < 0.010 ? 0.58 : roa < 0.020 ? 0.36 : roa < 0.035 ? 0.14 : 0.05;
-
-  // LTD (ratio): range 30% - 250% (0.30 - 2.50), mean=1.52
-  const R_ltd    = ltd > 2.0 ? 1.0 : ltd > 1.5 ? 0.80 : ltd > 1.0 ? 0.58 : ltd > 0.70 ? 0.35 : ltd > 0.50 ? 0.15 : 0.05;
-
-  // Liquid Assets (ratio): range 10% - 70% (0.10 - 0.70)
-  const R_liquid = liquidAssets < 0.15 ? 0.90 : liquidAssets < 0.25 ? 0.70 : liquidAssets < 0.35 ? 0.45 : liquidAssets < 0.50 ? 0.20 : 0.05;
-
-  // NPL (whole %): range 0% - 15%
-  const R_npl    = npl > 10.0 ? 1.0 : npl > 7.0 ? 0.82 : npl > 4.5 ? 0.60 : npl > 2.5 ? 0.35 : npl > 1.0 ? 0.18 : 0.08;
-
-  // CAR (ratio): range 8% - 30% (0.08 - 0.30)
-  const R_car    = car < 0.10 ? 1.0 : car < 0.12 ? 0.80 : car < 0.15 ? 0.50 : car < 0.18 ? 0.28 : car < 0.22 ? 0.12 : 0.04;
-
-  // Bank Size: slider in Billions EGP, converted to ln(Total Assets in Millions) for model
-  const lnSize   = Math.log(bankSize * 1000);
-  const R_size   = lnSize > 19 ? 0.78 : lnSize > 16 ? 0.88 : lnSize > 13 ? 0.96 : lnSize > 11 ? 1.05 : 1.12;
-
-  // EGX30 (index points): dataset range 0 – 47,786, mean=14,225
-  const R_egx30  = egx30 < 1000 ? 0.80 : egx30 < 5000 ? 0.60 : egx30 < 9000 ? 0.40 : egx30 < 15000 ? 0.22 : egx30 < 25000 ? 0.12 : 0.05;
-
-  // Inflation (whole %): dataset range 0 – 33.9%, mean=11.4%
-  const R_infl   = inflation > 30 ? 0.88 : inflation > 22 ? 0.70 : inflation > 15 ? 0.50 : inflation > 10 ? 0.30 : inflation > 5 ? 0.14 : 0.05;
-
-  // ESG (binary 0/1): 0 = no ESG programme, 1 = ESG-committed
-  const R_esg    = esg === 0 ? 0.35 : 0.10;
-
-  // ── Feature importance weights (from SHAP analysis on Egyptian banking dataset) ──
-  let score = R_ltd*0.30 + R_roa*0.18 + R_car*0.16 + R_liquid*0.12 + R_npl*0.10 + R_infl*0.06 + R_egx30*0.04 + R_esg*0.04;
-  score *= R_size; // Bank size as multiplier
-
-  // ── Categorical feature adjustments ──
-  if (isGovernment) score *= 0.82; // Government banks have implicit sovereign backstop (NBE effect)
-  if (isCrisis)     score *= 1.20; // Crisis years amplify all risk factors simultaneously
-
-  // ── Non-linear interaction effects ──
-  if (npl > 3.0 && car < 0.12)            score += 0.07;  // NPL stress + thin capital = collapse risk
-  if (ltd > 3.0 && liquidAssets < 0.30)   score += 0.06;  // Over-lending + illiquidity crunch
-  if (inflation > 20 && liquidAssets < 0.35) score += 0.04; // Macro squeeze on liquidity
-  if (roa > 0.025 && npl < 1.5)           score -= 0.05;  // Strong profits offset mild credit stress
-  if (esg === 1 && car > 0.15)            score -= 0.04;  // ESG + capital governance premium
-  if (roa > 0.018 && ltd < 1.2)           score -= 0.04;  // Sustainable growth profile
-
-  return Math.max(0.04, Math.min(0.96, score));
-}
+/* ── 5. RF Fragility Score Engine (Removed) ───────── */
+// The local computeRFScore function has been removed.
+// The dashboard now seamlessly fetches real-time predictions from the backend API via debouncing.
 
 /* ── 6. Main Dashboard View Component ──────────────────────────────────────── */
 export default function Dashboard({ banksData = [], onBackToOnboarding }) {
   // ── Sync adapted banks state with props ───────────────────────────────────
   const [banksState, setBanksState] = useState([]);
   const [bankId, setBankId] = useState('BANK');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isActionPlanOpen, setIsActionPlanOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
   useEffect(() => {
     if (banksData && banksData.length > 0) {
@@ -369,47 +371,69 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
       setAppliedSliders(sl);
       setHistorySliders(sl);
     }
-  }, [bankId, data]);
+  }, [bankId]); // Only trigger on bankId change to avoid jitter
 
   const sl = (key, val) => setTempSliders(p => ({ ...p, [key]: val }));
 
-  const applyScenario = () => {
+  const applyScenarioAPI = async (sliders) => {
     setRunning(true);
-    setTimeout(() => {
-      setHistorySliders(appliedSliders);
-      setAppliedSliders(tempSliders);
-      const newScore = computeRFScore({ ...tempSliders, isGovernment: data?.isGovernment, isCrisis: data?.isCrisis });
-      const status = newScore > 0.55 ? 'FRAGILE' : newScore > 0.30 ? 'VULNERABLE' : 'STABLE';
+    try {
+      const payload = {
+        records: [{
+          bank_name: data.id,
+          year: (data.trend.slice(-1)[0]?.year ?? 2025), // current or next year
+          roa: sliders.roa,
+          ldr: sliders.ltd,
+          liquid_assets_ratio: sliders.liquidAssets,
+          npl_ratio: sliders.npl / 100, // convert percentage back to decimal fraction for backend
+          bank_size: sliders.bankSize,
+          car: sliders.car,
+          macro_egx30: sliders.egx30,
+          macro_inflation: sliders.inflation / 100, // convert percentage back to decimal fraction for backend
+          esg_score: sliders.esg,
+          is_government: data?.isGovernment ?? false
+        }],
+        forecast_year: null
+      };
 
-      setBanksState(prev => prev.map(b => b.id === bankId ? {
-        ...b,
-        prediction_summary: {
-          ...b.prediction_summary,
-          fragility_score: parseFloat(newScore.toFixed(4)),
-          status,
-        },
-        trend: b.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(4)) } : p)
-      } : b));
+      const API_URL = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_URL}/api/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
+      if (res.ok) {
+        const result = await res.json();
+        const updatedBank = adaptBank(result[0]);
+        setBanksState(prev => prev.map(b => b.id === bankId ? updatedBank : b));
+        setHistorySliders(appliedSliders);
+        setAppliedSliders(sliders);
+      }
+    } catch (err) {
+      console.error("API Prediction Error:", err);
+    } finally {
       setRunning(false);
+    }
+  };
+
+  // Debounce effect: Auto-apply scenario when sliders stop moving for 500ms
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (JSON.stringify(tempSliders) !== JSON.stringify(appliedSliders)) {
+        applyScenarioAPI(tempSliders);
+      }
     }, 500);
+    return () => clearTimeout(handler);
+  }, [tempSliders, appliedSliders]);
+
+  const applyScenario = () => {
+    applyScenarioAPI(tempSliders);
   };
 
   const reset = () => {
     setTempSliders(historySliders);
-    setAppliedSliders(historySliders);
-    const newScore = computeRFScore({ ...historySliders, isGovernment: data?.isGovernment, isCrisis: data?.isCrisis });
-    const status = newScore > 0.55 ? 'FRAGILE' : newScore > 0.30 ? 'VULNERABLE' : 'STABLE';
-
-    setBanksState(prev => prev.map(b => b.id === bankId ? {
-      ...b,
-      prediction_summary: {
-        ...b.prediction_summary,
-        fragility_score: parseFloat(newScore.toFixed(4)),
-        status,
-      },
-      trend: b.trend.map(p => p.forecast ? { ...p, score: parseFloat(newScore.toFixed(4)) } : p)
-    } : b));
+    applyScenarioAPI(historySliders);
   };
 
   const ps        = data?.prediction_summary ?? {};
@@ -419,6 +443,8 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
   const features  = data?.features ?? [];
   const isFragile = ps.status === 'FRAGILE';
   const statusColor = isFragile ? '#FF6B6B' : ps.status === 'VULNERABLE' ? '#F59E0B' : '#6E68E7';
+  const topInfluencer = features && features.length > 0 ? features[0] : null;
+
   // Format helpers — all aligned with variableConfig.js real-world units
   const fmtRoa   = v => `${(v * 100).toFixed(1)}%`;             // ratio → e.g. 0.9%
   const fmtLtd   = v => `${(v * 100).toFixed(0)}%`;             // ratio → e.g. 208%
@@ -430,43 +456,23 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
   const fmtSize  = v => `${v.toFixed(0)}B EGP`;                 // Billion EGP directly
   const fmtESG   = v => v >= 3 ? 'AAA' : v >= 2 ? 'AA' : 'A';   // categorical A/AA/AAA
 
-  // Dynamic Primary Impact Drivers — normalized 0-1 for bar width, thresholds match real data
+  // Dynamic Primary Impact Drivers — derived directly from backend AI
   const S = appliedSliders;
-  const dynamicImpactDrivers = [
-    {
-      name: 'LTD Ratio',
-      value: Math.min(1.0, Math.max(0.05, (S.ltd - 0.35) / 6.58)),  // dataset range 0.35-6.93
-      raw: fmtLtd(S.ltd),
-      safe: S.ltd <= 2.5
-    },
-    {
-      name: 'Capital Adequacy (CAR)',
-      value: Math.min(1.0, Math.max(0.05, (0.32 - S.car) / 0.32)),  // inverted: low CAR = risk
-      raw: fmtCar(S.car),
-      safe: S.car >= 0.105
-    },
-    {
-      name: 'ROA Profitability',
-      value: Math.min(1.0, Math.max(0.05, (0.074 - S.roa) / 0.074)), // inverted: high ROA = safe
-      raw: fmtRoa(S.roa),
-      safe: S.roa >= 0.020
-    },
-    {
-      name: 'NPL Ratio',
-      value: Math.min(1.0, Math.max(0.05, S.npl / 20.0)),  // 0-20% scale
-      raw: fmtNpl(S.npl),
-      safe: S.npl <= 2.5
-    }
-  ].sort((a, b) => b.value - a.value);
+  const dynamicImpactDrivers = features.map(f => ({
+    name: f.variable_name,
+    value: Math.min(1.0, Math.max(0.05, (f.importance_weight || 0) / 100)),
+    raw: f.current_value,
+    safe: f.impact_direction === 'positive' || (f.importance_weight || 0) < 40
+  }));
 
   // ── Variable Intelligence Grid — from real features_intelligence_list ─────
   const gridVariables = features.length > 0 ? features.map(f => ({
     variable: f.variable_name,
     category: f.category ?? 'INTERNAL',
     value:    f.current_value ?? '—',
-    safe:     f.impact_direction === 'positive' || (f.importance_weight ?? 0) < 40,
+    safe:     f.status === 'STABLE',
     rec:      f.actionable_recommendation ?? f.semantic_reason ?? '',
-    critical: f.impact_direction === 'negative' && (f.importance_weight ?? 0) > 70,
+    critical: f.status === 'FRAGILE',
   })) : [
     {
       variable: 'Capital Adequacy Ratio (CAR)',
@@ -626,16 +632,16 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
             </h2>
 
             {/* ── Slider Rows — all ranges calibrated from Excel dataset ── */}
-            <div className="divide-y divide-slate-50/50 pr-1">
-              <SliderRow label="ROA (%)"           value={tempSliders.roa}          min={0.000} max={0.050} step={0.001} fmt={fmtRoa}  onChange={v => sl('roa', v)} />
-              <SliderRow label="LTD Ratio (%)"     value={tempSliders.ltd}          min={0.30}  max={2.50}  step={0.01}  fmt={fmtLtd}  onChange={v => sl('ltd', v)} />
-              <SliderRow label="Liquid Assets (%)" value={tempSliders.liquidAssets} min={0.10}  max={0.70}  step={0.01}  fmt={fmtLiq}  onChange={v => sl('liquidAssets', v)} />
-              <SliderRow label="NPL Ratio (%)"     value={tempSliders.npl}          min={0.0}   max={15.0}  step={0.1}   fmt={fmtNpl}  onChange={v => sl('npl', v)} />
-              <SliderRow label="CAR (%)"           value={tempSliders.car}          min={0.08}  max={0.30}  step={0.005} fmt={fmtCar}  onChange={v => sl('car', v)} />
-              <SliderRow label="Bank Assets (B EGP)" value={tempSliders.bankSize}   min={10}    max={2000}  step={10}    fmt={fmtSize} onChange={v => sl('bankSize', v)} />
-              <SliderRow label="EGX30 Index (pts)" value={tempSliders.egx30}        min={5000}  max={40000} step={100}   fmt={fmtEgx}  onChange={v => sl('egx30', v)} />
-              <SliderRow label="Inflation Rate (%)" value={tempSliders.inflation}   min={5.0}   max={40.0}  step={0.5}   fmt={fmtInfl} onChange={v => sl('inflation', v)} />
-              <SliderRow label="ESG Governance"    value={tempSliders.esg}          min={1}     max={3}     step={1}     fmt={fmtESG}  onChange={v => sl('esg', v)} />
+            <div className="space-y-4 pr-1">
+              <SliderRow label="ROA (%)"           value={tempSliders.roa}          min={-0.05} max={0.10} step={0.001} onChange={v => sl('roa', v)} inputMult={100} suffix="%" />
+              <SliderRow label="LTD Ratio (%)"     value={tempSliders.ltd}          min={0.30}  max={2.50}  step={0.01}  onChange={v => sl('ltd', v)} inputMult={100} suffix="%" />
+              <SliderRow label="Liquid Assets (%)" value={tempSliders.liquidAssets} min={0.10}  max={0.70}  step={0.01}  onChange={v => sl('liquidAssets', v)} inputMult={100} suffix="%" />
+              <SliderRow label="NPL Ratio (%)"     value={tempSliders.npl}          min={0.0}   max={15.0}  step={0.1}   onChange={v => sl('npl', v)} inputMult={1} suffix="%" />
+              <SliderRow label="CAR (%)"           value={tempSliders.car}          min={0.08}  max={0.30}  step={0.005} onChange={v => sl('car', v)} inputMult={100} suffix="%" />
+              <SliderRow label="Bank Assets (B EGP)" value={tempSliders.bankSize}   min={10}    max={2000}  step={10}    onChange={v => sl('bankSize', v)} inputMult={1} suffix="B" />
+              <SliderRow label="EGX30 Index (pts)" value={tempSliders.egx30}        min={5000}  max={40000} step={100}   onChange={v => sl('egx30', v)} inputMult={1} suffix="pts" />
+              <SliderRow label="Inflation Rate (%)" value={tempSliders.inflation}   min={5.0}   max={40.0}  step={0.5}   onChange={v => sl('inflation', v)} inputMult={1} suffix="%" />
+              <SliderRow label="ESG Governance"    value={tempSliders.esg}          min={1}     max={3}     step={1}     onChange={v => sl('esg', v)} inputMult={1} suffix={fmtESG(tempSliders.esg)} />
             </div>
           </div>
 
@@ -717,18 +723,18 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
                   {ps.recommendation}
                 </p>
               </div>
-              <button className="flex items-center gap-1.5 text-[#6E68E7] text-[10px] font-black uppercase tracking-wider hover:gap-2.5 transition-all border-0 bg-transparent py-0.5 cursor-pointer self-start leading-none shrink-0">
+              <button onClick={() => setIsActionPlanOpen(true)} className="flex items-center gap-1.5 text-[#6E68E7] text-[10px] font-black uppercase tracking-wider hover:gap-2.5 transition-all border-0 bg-transparent py-0.5 cursor-pointer self-start leading-none shrink-0">
                 View Action Plan <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
           </div>
 
-          {/* ── ROW 2: GRAPHICS DEEP-DIVE (Increased to h-[325px] to prevent clipping) ── */}
-          <div className="grid grid-cols-3 gap-6 h-[325px] shrink-0">
+          {/* ── ROW 2: GRAPHICS DEEP-DIVE (Reverted height, Adjusted width grid) ── */}
+          <div className="grid grid-cols-4 gap-6 min-h-[325px] shrink-0">
 
-            {/* Chart 1: Line Chart */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-full hover:shadow-md transition-shadow">
+            {/* Chart 1: Line Chart (Takes 2 columns for more width) */}
+            <div className="col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-full hover:shadow-md transition-shadow group">
               <div className="flex items-start justify-between mb-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-snug max-w-[70%] truncate">
                   Liquidity Fragility Trend
@@ -745,18 +751,18 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
                 </div>
               </div>
               
-              <div className="h-44 w-full flex items-center justify-center overflow-hidden">
+              <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
                 <LineChart trend={trend} />
               </div>
             </div>
 
             {/* Chart 2: Diamond Radar Chart */}
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-full hover:shadow-md transition-shadow">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-4">
                 Current State vs Target
               </span>
               
-              <div className="h-44 w-full flex items-center justify-center overflow-hidden my-0.5">
+              <div className="flex-1 w-full flex items-center justify-center overflow-hidden my-0.5">
                 <RadarChart radar={radar} sliders={appliedSliders} />
               </div>
               
@@ -771,20 +777,21 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
             </div>
 
             {/* Chart 3: Ordered Impact Drivers */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-full hover:shadow-md transition-shadow">
-              <div className="shrink-0">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                  Primary Impact Drivers
-                </span>
-                <p className="text-[10px] text-slate-400 font-semibold mt-1.5 leading-relaxed">
-                  Shows whether a variable is driving the bank toward Stability (+) or Fragility (-).
-                </p>
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col justify-between h-full hover:shadow-md transition-shadow relative">
+              <div className="flex items-start justify-between shrink-0">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
+                    Primary Impact Drivers
+                  </span>
+                  <p className="text-[10px] text-slate-400 font-semibold mt-1.5 leading-relaxed max-w-[90%]">
+                    Shows whether a variable is driving the bank toward Stability (+) or Fragility (-).
+                  </p>
+                </div>
               </div>
               
-              {/* Dynamic scroll list and dynamic conditional color formatting */}
-              <div className="h-44 overflow-y-auto space-y-3 mt-3 pr-1">
-                {dynamicImpactDrivers.map((d, i) => (
-                  <div key={i} className="space-y-1.5">
+              <div className="flex-1 flex flex-col justify-center space-y-3 mt-4">
+                {dynamicImpactDrivers.slice(0, 4).map((d, i) => (
+                  <div key={i} className="space-y-1.5 animate-in fade-in duration-300">
                     <div className="flex justify-between items-center text-[10px] font-black">
                       <span className="text-slate-500 uppercase truncate max-w-[75%]" title={d.name}>{d.name}</span>
                       <span className={`shrink-0 ${d.safe ? 'text-[#6E68E7]' : 'text-[#FF6B6B]'}`}>
@@ -798,6 +805,15 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex justify-center shrink-0">
+                <button 
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="text-[9px] font-black uppercase tracking-wider py-2 px-4 rounded-full transition-all border bg-slate-50 text-slate-500 border-slate-200 hover:bg-[#6E68E7] hover:text-white hover:border-[#6E68E7] w-full"
+                >
+                  View Full Analysis & History
+                </button>
               </div>
             </div>
 
@@ -857,6 +873,150 @@ export default function Dashboard({ banksData = [], onBackToOnboarding }) {
           </main>
         </div>
       </div>
+
+      {/* ── Action Plan Modal ────────────────────────────────────────── */}
+      {isActionPlanOpen && topInfluencer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setIsActionPlanOpen(false)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-[0_0_50px_-12px_rgba(110,104,231,0.3)] overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-300">
+            {/* Lifelike glowing top accent */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-400 via-[#6E68E7] to-purple-400"></div>
+            
+            <div className="p-8 relative overflow-hidden">
+              {/* Background breathing glow */}
+              <div className="absolute -top-20 -right-20 w-64 h-64 bg-[#6E68E7]/10 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite]"></div>
+
+              <button onClick={() => setIsActionPlanOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 transition-colors z-20 hover:rotate-90 duration-300">
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="mb-8 relative z-10">
+                <div className="flex items-center gap-4 mb-4">
+                  {/* The Lifelike Visual Element (Pulsing Sonar/Heartbeat) */}
+                  <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
+                    <div className="absolute inset-0 rounded-full bg-[#6E68E7] opacity-20 animate-[ping_2.5s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                    <div className="absolute inset-1.5 rounded-full bg-gradient-to-tr from-[#6E68E7] to-indigo-400 opacity-30 animate-pulse"></div>
+                    <div className="relative z-10 flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-tr from-[#6E68E7] to-purple-500 text-white shadow-[0_0_20px_rgba(110,104,231,0.5)]">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-[#6E68E7] uppercase tracking-widest bg-[#6E68E7]/10 px-2.5 py-1 rounded-full inline-block mb-1.5 border border-[#6E68E7]/20">Targeted Action Plan</span>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                      {topInfluencer.variable_name}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-6 relative z-10">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> Context
+                  </h4>
+                  <p className="text-sm font-medium text-slate-600 leading-relaxed bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                    {topInfluencer.semantic_reason}
+                  </p>
+                </div>
+                
+                <div className="bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-2xl p-5 border border-indigo-100 relative overflow-hidden group">
+                  {/* Hover shimmer effect inside the action box */}
+                  <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                  
+                  <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span> Required Action
+                  </h4>
+                  <p className="text-lg font-black text-slate-800 leading-snug relative z-10">
+                    {topInfluencer.quantitative_target || "Maintain current trajectory."}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end relative z-10">
+                <button onClick={() => setIsActionPlanOpen(false)} className="bg-slate-900 hover:bg-[#6E68E7] text-white text-xs font-bold uppercase tracking-wider py-3.5 px-8 rounded-xl transition-all duration-300 shadow-lg hover:shadow-[#6E68E7]/30 hover:-translate-y-0.5">
+                  Acknowledge
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Full Analysis & History Modal ────────────────────────────────────────── */}
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setIsHistoryModalOpen(false)}></div>
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-[0_0_50px_-12px_rgba(110,104,231,0.3)] overflow-hidden relative z-10 animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
+            
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-400 via-[#6E68E7] to-purple-400 shrink-0"></div>
+            
+            <div className="p-6 pb-4 border-b border-slate-100 flex items-center justify-between shrink-0 relative">
+              {/* Background breathing glow */}
+              <div className="absolute top-0 right-10 w-40 h-40 bg-[#6E68E7]/10 rounded-full blur-3xl animate-[pulse_4s_ease-in-out_infinite] pointer-events-none"></div>
+              
+              <div>
+                <span className="text-[9px] font-black text-[#6E68E7] uppercase tracking-widest bg-[#6E68E7]/10 px-2.5 py-1 rounded-full inline-block mb-1.5 border border-[#6E68E7]/20">Deep Dive</span>
+                <h3 className="text-xl font-black text-slate-900 tracking-tight">Full Impact Analysis</h3>
+              </div>
+              <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-slate-900 transition-colors z-20 hover:rotate-90 duration-300 bg-slate-100 hover:bg-slate-200 p-2 rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin scrollbar-thumb-slate-200">
+              {/* Current All Drivers Section */}
+              <section>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6E68E7] animate-pulse"></span> Current Variables Impact
+                </h4>
+                <div className="space-y-3.5 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                  {dynamicImpactDrivers.map((d, i) => (
+                    <div key={`full-${i}`} className="space-y-1.5">
+                      <div className="flex justify-between items-center text-[10px] font-black">
+                        <span className="text-slate-600 uppercase truncate max-w-[75%]" title={d.name}>{d.name}</span>
+                        <span className={`shrink-0 ${d.safe ? 'text-[#6E68E7]' : 'text-[#FF6B6B]'}`}>
+                          {d.raw}
+                        </span>
+                      </div>
+                      <div className="h-[4px] bg-slate-200 rounded-full overflow-hidden w-full">
+                        <div className={`h-full rounded-full transition-all duration-500 ${
+                          d.safe ? 'bg-[#6E68E7]' : 'bg-[#FF6B6B]'
+                        }`} style={{ width: `${d.value * 100}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* 10 Year History Section */}
+              <section>
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span> 10-Year Historical Analysis
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gradient-to-br from-[#6E68E7]/5 to-indigo-50 rounded-2xl p-4 border border-[#6E68E7]/10 relative overflow-hidden group">
+                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Most Positive Impact</span>
+                    <span className="text-sm font-black text-[#6E68E7] block leading-tight">{data?.historical_drivers?.positive_driver || 'N/A'}</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[#FF6B6B]/5 to-rose-50 rounded-2xl p-4 border border-[#FF6B6B]/10 relative overflow-hidden group">
+                    <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                    <span className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Most Negative Impact</span>
+                    <span className="text-sm font-black text-[#FF6B6B] block leading-tight">{data?.historical_drivers?.negative_driver || 'N/A'}</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 flex justify-end shrink-0 bg-slate-50/50">
+              <button onClick={() => setIsHistoryModalOpen(false)} className="bg-slate-900 hover:bg-[#6E68E7] text-white text-xs font-bold uppercase tracking-wider py-3 px-8 rounded-xl transition-all duration-300 shadow-md hover:shadow-[#6E68E7]/30 hover:-translate-y-0.5">
+                Close Analysis
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

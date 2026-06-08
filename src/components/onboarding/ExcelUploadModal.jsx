@@ -39,7 +39,9 @@ export default function ExcelUploadModal({ isOpen, onClose, onUploadSuccess }) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch('http://localhost:8000/api/upload', {
+      // Use env variable or fallback to current origin for production
+      const API_URL = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_URL}/api/upload`, {
         method: 'POST',
         body: formData,
       });

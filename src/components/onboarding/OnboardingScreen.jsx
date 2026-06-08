@@ -38,7 +38,8 @@ export default function OnboardingScreen({ onBanksReady }) {
     setDemoLoading(true);
     setDemoError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/banks');
+      const API_URL = import.meta.env.VITE_API_BASE_URL || '';
+      const res = await fetch(`${API_URL}/api/banks`);
       if (!res.ok) throw new Error(`Server ${res.status}`);
       const banksArray = await res.json();
       setDemoLoading(false);
